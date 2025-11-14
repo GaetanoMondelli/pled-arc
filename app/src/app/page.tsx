@@ -2,10 +2,13 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { CounterDisplay } from '@/components/counter-display';
+import { CircleWalletDisplay } from '@/components/CircleWalletDisplay';
 import { counterAddress, defaultChain } from '@/lib/contracts';
+import { useAccount } from 'wagmi';
 
 export default function Home() {
   const address = counterAddress[defaultChain.id];
+  const { address: walletAddress, isConnected } = useAccount();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -14,11 +17,12 @@ export default function Home() {
           <h1 className="text-4xl font-bold">Web3 Arc Hackathon App</h1>
           <ConnectButton />
         </div>
+
         <p className="text-lg mb-4">
-          Next.js app with Counter Contract
+          Next.js app with Counter Contract & Circle Developer Wallets
         </p>
 
-        <div className="mt-8">
+        <div className="mt-8 space-y-8">
           {address ? (
             <CounterDisplay contractAddress={address} />
           ) : (
@@ -26,6 +30,10 @@ export default function Home() {
               <p className="text-red-500">No contract address found for chain {defaultChain.id}</p>
             </div>
           )}
+
+          <div className="mt-12">
+            <CircleWalletDisplay />
+          </div>
         </div>
       </div>
     </main>
