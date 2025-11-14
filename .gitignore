@@ -51,3 +51,7 @@ original-app/
 
 # Circle recovery files (contains sensitive Entity Secret)
 .circle-recovery/
+app/check-firebase.js
+app/check-individual-wallet-balances.js
+app/check-onchain-balance.js
+app/CIRCLE_CIPHERTEXT.txt

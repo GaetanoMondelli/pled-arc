@@ -1,0 +1,589 @@
+{
+  "templateId": "5FWDJYeR0jbDl7PzI1bzr",
+  "name": "Step Execution 2025-11-14T00-14-04",
+  "status": "active",
+  "currentState": {
+    "nodeStates": {},
+    "currentTime": 0,
+    "eventCounter": 0,
+    "nodeActivityLogs": {}
+  },
+  "events": [
+    {
+      "id": "evt_satn1l",
+      "timestamp": 1761915856856,
+      "source": "EXTERNAL",
+      "origin": "external_input",
+      "nodeId": "pey_source_0",
+      "type": "number_input",
+      "data": {
+        "value": 7
+      },
+      "originalPayload": {
+        "id": "evt_satn1l",
+        "timestamp": 1761915856856,
+        "type": "number_input",
+        "source": "external_input",
+        "data": {
+          "value": 7
+        },
+        "targetDataSourceId": "pey_source_0"
+      }
+    },
+    {
+      "id": "evt_wr4h3u",
+      "timestamp": 1761915863936,
+      "source": "EXTERNAL",
+      "origin": "external_input",
+      "nodeId": "peffy_source_0",
+      "type": "number_input",
+      "data": {
+        "value": 8
+      },
+      "originalPayload": {
+        "id": "evt_wr4h3u",
+        "timestamp": 1761915863936,
+        "type": "number_input",
+        "source": "external_input",
+        "data": {
+          "value": 8
+        },
+        "targetDataSourceId": "peffy_source_0"
+      }
+    },
+    {
+      "id": "evt_clnw0y",
+      "timestamp": 1761915871257,
+      "source": "EXTERNAL",
+      "origin": "external_input",
+      "nodeId": "pehpy_source_0",
+      "type": "number_input",
+      "data": {
+        "value": 8
+      },
+      "originalPayload": {
+        "id": "evt_clnw0y",
+        "timestamp": 1761915871257,
+        "type": "number_input",
+        "source": "external_input",
+        "data": {
+          "value": 8
+        },
+        "targetDataSourceId": "pehpy_source_0"
+      }
+    },
+    {
+      "id": "evt_hn4vks",
+      "timestamp": 1761915875887,
+      "source": "EXTERNAL",
+      "origin": "external_input",
+      "nodeId": "pebessy_source_0",
+      "type": "number_input",
+      "data": {
+        "value": 6
+      },
+      "originalPayload": {
+        "id": "evt_hn4vks",
+        "timestamp": 1761915875887,
+        "type": "number_input",
+        "source": "external_input",
+        "data": {
+          "value": 6
+        },
+        "targetDataSourceId": "pebessy_source_0"
+      }
+    },
+    {
+      "id": "evt_ysypvi",
+      "timestamp": 1762992225907,
+      "source": "EXTERNAL",
+      "origin": "external_input",
+      "nodeId": "SolarDataSource2",
+      "type": "number_input",
+      "data": {
+        "timestamp": 400,
+        "sourceNodeId": "external",
+        "destinationNodeId": "RegistrySink",
+        "destinationInputName": "creditRecord",
+        "data": {
+          "state": "IssueCredit",
+          "test": "direct sink test"
+        }
+      },
+      "originalPayload": {
+        "id": "evt_ysypvi",
+        "timestamp": 1762992225907,
+        "type": "number_input",
+        "source": "external_input",
+        "data": {
+          "timestamp": 400,
+          "sourceNodeId": "external",
+          "destinationNodeId": "RegistrySink",
+          "destinationInputName": "creditRecord",
+          "data": {
+            "state": "IssueCredit",
+            "test": "direct sink test"
+          }
+        },
+        "targetDataSourceId": "SolarDataSource2"
+      }
+    }
+  ],
+  "messages": [],
+  "metadata": {
+    "description": "Automatically created execution for step-by-step simulation",
+    "scenario": {
+      "version": "3.0",
+      "nodes": [
+        {
+          "nodeId": "SolarDataSource2",
+          "displayName": "Solar Panel Data Source2",
+          "position": {
+            "x": -38.59233047493842,
+            "y": 42.70271833195909
+          },
+          "type": "DataSource",
+          "interval": 5,
+          "outputs": [
+            {
+              "name": "energyOutput",
+              "destinationNodeId": "EnergyQueue",
+              "destinationInputName": "energyInput",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": []
+              }
+            },
+            {
+              "name": "output",
+              "destinationNodeId": "",
+              "destinationInputName": "",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": []
+              }
+            }
+          ],
+          "generation": {
+            "type": "random",
+            "valueMin": 3.5,
+            "valueMax": 5
+          }
+        },
+        {
+          "nodeId": "EnergyQueue",
+          "displayName": "Energy Aggregation Queue",
+          "position": {
+            "x": 233.4241906915429,
+            "y": 41.86303237233824
+          },
+          "type": "Queue",
+          "inputs": [
+            {
+              "name": "energyInput",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": []
+              },
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "aggregatedEnergy",
+              "destinationNodeId": "EmissionProcess",
+              "destinationInputName": "energyData",
+              "interface": {
+                "type": "AggregationResult",
+                "requiredFields": []
+              }
+            }
+          ],
+          "aggregation": {
+            "method": "sum",
+            "formula": "SUM(values)",
+            "trigger": {
+              "type": "time",
+              "window": 60
+            }
+          },
+          "capacity": 1000
+        },
+        {
+          "nodeId": "EmissionProcess",
+          "displayName": "Emission Avoidance Processor",
+          "position": {
+            "x": 480.88542482156004,
+            "y": 44
+          },
+          "type": "ProcessNode",
+          "inputs": [
+            {
+              "name": "energyData",
+              "nodeId": "EnergyQueue",
+              "sourceOutputName": "aggregatedEnergy",
+              "interface": {
+                "type": "AggregationResult",
+                "requiredFields": []
+              },
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "offsetData",
+              "destinationNodeId": "CreditFSM",
+              "destinationInputName": "offsetInput",
+              "interface": {
+                "type": "TransformationResult",
+                "requiredFields": []
+              }
+            }
+          ],
+          "processing": {
+            "type": "transform",
+            "comment": "Carbon Avoidance Calculation: 0.4 kg CO2 avoided per kWh of renewable energy",
+            "description": "Converts renewable energy generation to carbon emission avoidance using EPA standard factor",
+            "formula": "const carbonAvoidedKg = energyData * 0.4; return { carbonAvoidedKg, energyData, conversionFactor: 0.4, timestamp: new Date().toISOString() };"
+          }
+        },
+        {
+          "nodeId": "CreditFSM",
+          "displayName": "Carbon Credit Issuance FSM",
+          "position": {
+            "x": 747.1002659822767,
+            "y": 50.795589607970214
+          },
+          "type": "FSMProcessNode",
+          "inputs": [
+            {
+              "name": "offsetInput",
+              "interface": {
+                "type": "TransformationResult",
+                "requiredFields": []
+              },
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "creditIssued",
+              "destinationNodeId": "RegistrySink",
+              "destinationInputName": "creditRecord",
+              "interface": {
+                "type": "Any",
+                "requiredFields": []
+              }
+            }
+          ],
+          "fsm": {
+            "states": [
+              {
+                "name": "WaitingForOffset",
+                "onEntry": [
+                  {
+                    "action": "log",
+                    "value": "Waiting for offset input"
+                  }
+                ]
+              },
+              {
+                "name": "IssueCredit",
+                "onEntry": [
+                  {
+                    "action": "emit",
+                    "target": "creditIssued",
+                    "formula": "{ id: Date.now().toString(), amount: offsetInput.carbonAvoidedKg / 1000, unit: 'tCO2e', timestamp: new Date().toISOString() }"
+                  },
+                  {
+                    "action": "log",
+                    "value": "Issued new carbon credit"
+                  }
+                ]
+              }
+            ],
+            "initialState": "WaitingForOffset",
+            "transitions": [
+              {
+                "from": "WaitingForOffset",
+                "to": "IssueCredit",
+                "trigger": "default",
+                "guard": "offsetInput && offsetInput.carbonAvoidedKg > 0"
+              }
+            ],
+            "variables": {}
+          }
+        },
+        {
+          "nodeId": "RegistrySink",
+          "displayName": "Credit Registry Sink",
+          "position": {
+            "x": 983.5027293673328,
+            "y": 54.65273326395044
+          },
+          "type": "Sink",
+          "inputs": [
+            {
+              "name": "creditRecord",
+              "interface": {
+                "type": "Any",
+                "requiredFields": []
+              },
+              "required": true
+            }
+          ]
+        },
+        {
+          "nodeId": "peffy_source_0",
+          "displayName": "PEFF,y Source",
+          "description": "Project emissions from fossil fuel consumption during the project year. Represents CO2 emissions from grid electricity and direct fuel use.",
+          "position": {
+            "x": -28.700854700854507,
+            "y": 457.76808831116864
+          },
+          "type": "DataSource",
+          "interval": 3,
+          "outputs": [
+            {
+              "name": "output",
+              "destinationNodeId": "formula_calc_0",
+              "destinationInputName": "inputB",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              }
+            }
+          ],
+          "generation": {
+            "type": "random",
+            "valueMin": 10,
+            "valueMax": 25
+          }
+        },
+        {
+          "nodeId": "pehpy_source_0",
+          "displayName": "PEHP,y Source",
+          "description": "Project emissions from heat pump operations during the project year. Includes electricity consumption for heating and cooling systems.",
+          "position": {
+            "x": -52.70085470085451,
+            "y": 653.5180883111686
+          },
+          "type": "DataSource",
+          "interval": 3,
+          "outputs": [
+            {
+              "name": "output",
+              "destinationNodeId": "formula_calc_0",
+              "destinationInputName": "inputC",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              }
+            }
+          ],
+          "generation": {
+            "type": "random",
+            "valueMin": 8,
+            "valueMax": 20
+          }
+        },
+        {
+          "nodeId": "pebessy_source_0",
+          "displayName": "PEBESS,y Source",
+          "description": "Project emissions from battery energy storage systems during the project year. Includes manufacturing footprint and charging inefficiencies.",
+          "position": {
+            "x": -42.70085470085451,
+            "y": 829.5180883111686
+          },
+          "type": "DataSource",
+          "interval": 3,
+          "outputs": [
+            {
+              "name": "output",
+              "destinationNodeId": "formula_calc_0",
+              "destinationInputName": "inputD",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              }
+            }
+          ],
+          "generation": {
+            "type": "random",
+            "valueMin": 12,
+            "valueMax": 30
+          }
+        },
+        {
+          "nodeId": "pey_source_0",
+          "displayName": "PEy Source",
+          "description": "Represents baseline project emissions (PEy) that would occur without the renewable energy intervention. Currently set to zero as baseline.",
+          "position": {
+            "x": -33.738105183836524,
+            "y": 290.2184676745743
+          },
+          "type": "DataSource",
+          "interval": 3,
+          "outputs": [
+            {
+              "name": "output",
+              "destinationNodeId": "formula_calc_0",
+              "destinationInputName": "inputA",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              }
+            }
+          ],
+          "generation": {
+            "type": "random",
+            "valueMin": 5,
+            "valueMax": 15
+          }
+        },
+        {
+          "nodeId": "formula_calc_0",
+          "displayName": "Project emissions Calculator",
+          "description": "Multi-input processor that calculates total project emissions by summing fossil fuel emissions (PEFF,y), heat pump emissions (PEHP,y), and battery storage emissions (PEBESS,y) for the project year. Waits for all 4 inputs before processing.",
+          "position": {
+            "x": 507.2991452991455,
+            "y": 584.5180883111686
+          },
+          "type": "ProcessNode",
+          "inputs": [
+            {
+              "name": "inputA",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              },
+              "required": true
+            },
+            {
+              "name": "inputB",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              },
+              "required": true
+            },
+            {
+              "name": "inputC",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              },
+              "required": true
+            },
+            {
+              "name": "inputD",
+              "interface": {
+                "type": "SimpleValue",
+                "requiredFields": [
+                  "data.value"
+                ]
+              },
+              "required": true
+            }
+          ],
+          "outputs": [
+            {
+              "name": "output",
+              "destinationNodeId": "result_sink_0",
+              "destinationInputName": "input",
+              "interface": {
+                "type": "CalculationResult",
+                "requiredFields": [
+                  "data.result"
+                ]
+              }
+            }
+          ],
+          "processing": {
+            "type": "transform",
+            "description": "Project Emissions Calculation: Sum of fossil fuel emissions (PEFF,y), heat pump emissions (PEHP,y), and battery storage emissions (PEBESS,y) for the project year",
+            "formula": "const PE_FF_y = inputB; const PE_HP_y = inputC; const PE_BESS_y = inputD; const PE_y = PE_FF_y + PE_HP_y + PE_BESS_y; return { PE_y, PE_FF_y, PE_HP_y, PE_BESS_y, formula: 'PEy = PEFF + PEHP + PEBESS', result: PE_y, processedAt: simulationTime };"
+          },
+          "environment": {
+            "runtime": "Browser",
+            "jsEngine": "Chrome/119.0.6045.105",
+            "platform": "MacIntel",
+            "recordedAt": "2024-11-02T12:00:00.000Z",
+            "determinismNotes": [
+              "Formula uses Date.now() which will vary between executions",
+              "Math operations are deterministic in IEEE 754",
+              "Input order matters for consistent results",
+              "JavaScript version compatibility required for exact replay"
+            ]
+          }
+        },
+        {
+          "nodeId": "result_sink_0",
+          "displayName": "Project emissions Result",
+          "description": "Stores the completed project emissions calculation results including total emissions and breakdown by component (fossil fuel, heat pump, battery storage)",
+          "position": {
+            "x": 883.2991452991455,
+            "y": 605.6089974020778
+          },
+          "type": "Sink",
+          "inputs": [
+            {
+              "name": "input",
+              "interface": {
+                "type": "CalculationResult",
+                "requiredFields": [
+                  "data.result"
+                ]
+              },
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": "MarkdownComment",
+          "displayName": "Project Emissions Formula",
+          "content": "# Project Emissions Formula\n\n**Mathematical Expression:**\n𝑃𝐸𝑦 = 𝑃𝐸𝐹𝐹,𝑦 + 𝑃𝐸𝐻𝑃,𝑦 + 𝑃𝐸𝐵𝐸𝑆𝑆,𝑦\n\n**Where:**\n- 𝑃𝐸𝑦 = Total project emissions for year y\n- 𝑃𝐸𝐹𝐹,𝑦 = Fossil fuel emissions\n- 𝑃𝐸𝐻𝑃,𝑦 = Heat pump emissions  \n- 𝑃𝐸𝐵𝐸𝑆𝑆,𝑦 = Battery storage emissions\n\nThis calculation aggregates all emission sources to determine the total carbon footprint of the project.",
+          "width": 350,
+          "height": 200,
+          "nodeId": "MarkdownComment_1761869777881",
+          "position": {
+            "x": -639.8938908085358,
+            "y": 41.00270761300237
+          },
+          "config": {
+            "content": "# Project Emissions Formula\n\n**Mathematical Expression:**\n𝑃𝐸𝑦 = 𝑃𝐸𝐹𝐹,𝑦 + 𝑃𝐸𝐻𝑃,𝑦 + 𝑃𝐸𝐵𝐸𝑆𝑆,𝑦\n\n**Where:**\n- 𝑃𝐸𝑦 = Total project emissions for year y\n- 𝑃𝐸𝐹𝐹,𝑦 = Fossil fuel emissions\n- 𝑃𝐸𝐻𝑃,𝑦 = Heat pump emissions  \n- 𝑃𝐸𝐵𝐸𝑆𝑆,𝑦 = Battery storage emissions\n\nThis calculation aggregates all emission sources to determine the total carbon footprint of the project.",
+            "backgroundColor": "yellow",
+            "fontSize": "11"
+          }
+        }
+      ],
+      "groups": {
+        "visualMode": "all",
+        "activeFilters": []
+      },
+      "edges": []
+    },
+    "totalExternalEvents": 5,
+    "eventTypes": [
+      "number_input"
+    ],
+    "replayable": true
+  },
+  "id": "0aWFQ5KcRVbssAw5MedIA",
+  "startedAt": 1763079244512,
+  "updatedAt": 1763079244512
+}
