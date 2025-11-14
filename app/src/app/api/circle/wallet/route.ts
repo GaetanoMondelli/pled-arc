@@ -15,27 +15,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: publicKey.data });
     }
 
-    // Default: list wallets with balances from multiple blockchains
-    const blockchains = ['ETH-SEPOLIA', 'ARC-TESTNET'];
+    // Default: list all wallets and get their token balances individually
+    const walletsList = await client.listWallets({});
+    const wallets = walletsList.data?.wallets || [];
 
-    // Fetch wallets from all blockchains in parallel
-    const walletsPromises = blockchains.map(blockchain =>
-      client.getWalletsWithBalances({ blockchain })
-        .then(response => response.data?.wallets || [])
-        .catch(err => {
-          console.error(`Error fetching ${blockchain} wallets:`, err.message);
-          return [];
-        })
+    // Fetch token balances for each wallet individually
+    const walletsWithBalances = await Promise.all(
+      wallets.map(async (wallet) => {
+        try {
+          const balanceResponse = await client.getWalletTokenBalance({
+            id: wallet.id
+          });
+
+          return {
+            ...wallet,
+            tokenBalances: balanceResponse.data?.tokenBalances || []
+          };
+        } catch (err) {
+          console.error(`Error fetching balance for wallet ${wallet.id}:`, err.message);
+          return {
+            ...wallet,
+            tokenBalances: []
+          };
+        }
+      })
     );
-
-    const walletsArrays = await Promise.all(walletsPromises);
-
-    // Merge wallets from all blockchains
-    const allWallets = walletsArrays.flat();
 
     return NextResponse.json({
       success: true,
-      data: { wallets: allWallets }
+      data: { wallets: walletsWithBalances }
     });
   } catch (error: any) {
     console.error('Circle wallet API error:', error.message);
