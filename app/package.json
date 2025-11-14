@@ -16,6 +16,8 @@
     "migrate:backups": "npx tsx scripts/safe-migrate-templates.ts list-backups"
   },
   "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^9.3.0",
+    "@circle-fin/w3s-pw-web-sdk": "^1.1.11",
     "@google/genai": "^1.28.0",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-checkbox": "^1.1.3",
