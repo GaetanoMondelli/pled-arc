@@ -1,7 +1,25 @@
 ## Encode × Arc DeFi Hackathon Challenges
 GAETANO MONDELLI · NOV 14, 2025
 
+
+
+## Description
+
+<!-- incliide imaghe pledLOGO.png --> 
+![logo](pledLOGO.png)
+
+Everything in the real world starts as a claim: "you own this, you belong to this community, you earned that, you completed the work, you deserve a payment". Claims aren't always quantitative or certain, and that ambiguity is part of reality. PLED  brings that on-chain by reconciling off-chain evidence into a tokenized claim with a Reliability Index that captures confidence rather than pretending certainty.
+
+
+
+
+## ARC
+
 Arc is built to connect programmable money with the real economy.
+
+
+
+
 
 ##  Here’s why it matters:
 - Use stablecoins as native gas - You pay fees in USDC, not volatile tokens. Costs stay predictable and low.
