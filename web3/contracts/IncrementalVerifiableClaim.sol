@@ -47,9 +47,6 @@ contract IncrementalVerifiableClaim {
     // STATE VARIABLES
     // ============================================================================
 
-    /// @notice Token ID counter
-    uint256 private _tokenIdCounter;
-
     /// @notice Mapping from token ID to claim data (internal storage)
     mapping(uint256 => ClaimData) internal claims;
 
@@ -120,7 +117,6 @@ contract IncrementalVerifiableClaim {
 
     constructor() {
         deployer = msg.sender;
-        _tokenIdCounter = 1;
     }
 
     // ============================================================================
@@ -130,14 +126,14 @@ contract IncrementalVerifiableClaim {
     /**
      * @notice Mints a new claim NFT with initial events
      * @param to Address to mint the claim to
-     * @param claimId Off-chain claim ID
+     * @param claimId Off-chain claim ID (also used to compute deterministic tokenId)
      * @param workflowId Workflow template ID
      * @param executionId Execution instance ID
      * @param initialLedgerEvents Array of event hashes for full ledger
      * @param initialSinkEvents Array of event hashes for sink
      * @param aggregateValue Computed claim value
      * @param metadataUri IPFS URI to claim metadata
-     * @return tokenId The minted token ID
+     * @return tokenId The minted token ID (deterministic based on claimId)
      */
     function mintClaim(
         address to,
@@ -152,7 +148,9 @@ contract IncrementalVerifiableClaim {
         require(to != address(0), "Cannot mint to zero address");
         require(initialLedgerEvents.length > 0, "Need at least one ledger event");
 
-        uint256 tokenId = _tokenIdCounter++;
+        // Generate deterministic tokenId from claimId hash
+        uint256 tokenId = uint256(keccak256(abi.encodePacked(claimId)));
+        require(ownerOf[tokenId] == address(0), "Token ID already exists");
 
         ClaimData storage claim = claims[tokenId];
         claim.claimId = claimId;
@@ -332,10 +330,12 @@ contract IncrementalVerifiableClaim {
 
     /**
      * @notice Returns the total supply of tokens
-     * @return uint256 total supply
+     * @dev With deterministic tokenIds, we can't track total supply with a counter
+     * @dev This function is deprecated - use event logs to count minted tokens
+     * @return uint256 always returns 0
      */
-    function totalSupply() public view returns (uint256) {
-        return _tokenIdCounter - 1;
+    function totalSupply() public pure returns (uint256) {
+        return 0; // Deprecated - use event logs to count minted tokens
     }
 
     // ============================================================================
