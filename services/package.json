@@ -1,0 +1,28 @@
+{
+  "name": "services-tests",
+  "version": "1.0.0",
+  "description": "Test suite for Docling and Workflow Agent services",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test:all",
+    "test:all": "npm run test:docling && npm run test:workflow && npm run test:complete",
+    "test:docling": "tsx test-docling.ts",
+    "test:workflow": "tsx test-workflow-agent.ts",
+    "test:complete": "tsx test-complete-workflow.ts"
+  },
+  "keywords": [
+    "docling",
+    "workflow",
+    "agent",
+    "pdf",
+    "parsing",
+    "dsl"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

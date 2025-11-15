@@ -1,0 +1,20 @@
+# Test output files
+docling-output.json
+test-docling-summary.txt
+test-docling-error.txt
+
+workflow-agent-output.json
+test-workflow-agent-summary.txt
+test-workflow-agent-error.txt
+
+complete-workflow-docling.json
+complete-workflow-agent.json
+complete-workflow-summary.json
+
+# Node
+node_modules/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
