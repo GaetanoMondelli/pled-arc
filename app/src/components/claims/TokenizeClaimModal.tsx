@@ -340,8 +340,15 @@ export function TokenizeClaimModal({
         throw new Error("No Circle wallets available. Please create a wallet first.");
       }
 
-      // Use the first wallet for minting
-      const wallet = walletsResult.data.wallets[0];
+      // Filter for Arc Testnet wallets ONLY
+      const arcWallets = walletsResult.data.wallets.filter((w: any) => w.blockchain === 'ARC-TESTNET');
+
+      if (!arcWallets || arcWallets.length === 0) {
+        throw new Error("No Arc Testnet wallets available. Please create an Arc Testnet wallet first.");
+      }
+
+      // Use the first Arc Testnet wallet for minting
+      const wallet = arcWallets[0];
       const walletId = wallet.id;
       const ownerAddress = wallet.address as `0x${string}`;
 

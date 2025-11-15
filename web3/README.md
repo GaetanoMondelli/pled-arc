@@ -55,3 +55,12 @@ After setting the variable, you can run the deployment with the Sepolia network:
 ```shell
 npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
 ```
+
+
+rc Testnet Network Details
+
+  Chain ID: 13331371RPC URL:
+  https://rpc-testnet.archub.io
+
+  Block Explorer:
+  https://testnet.archub.io

@@ -572,6 +572,166 @@ export interface ClaimSearchFacets {
 }
 
 // ============================================================================
+// TOKENIZATION AND VERIFICATION TYPES
+// ============================================================================
+
+/**
+ * Tokenization data for converting claims into verifiable, on-chain assets
+ */
+export interface ClaimTokenization {
+  // Full Execution Ledger Merkle Tree
+  fullLedgerMerkleRoot: string;      // Root hash of ALL execution events
+  fullLedgerEventCount: number;      // Total number of events in full ledger
+
+  // Sink-Specific Merkle Tree
+  sinkMerkleRoot: string;            // Root hash of ONLY this sink's events
+  sinkEventCount: number;            // Number of events in this sink
+  sinkEventHashes: string[];         // Individual event hashes for this sink
+
+  // Inclusion Proofs (proves sink events are subset of full ledger)
+  inclusionProofs?: MerkleProof[];   // Proof that each sink event exists in full ledger
+
+  // NFT-like Metadata for Tokenization
+  tokenMetadata: ClaimTokenMetadata;
+
+  // On-chain Information (if minted)
+  onChain?: OnChainClaimData;
+
+  // Verification Status
+  verified: boolean;                 // Whether the claim has been cryptographically verified
+  verifiedAt?: Date;                 // When verification occurred
+  verificationMethod?: 'local' | 'on-chain' | 'oracle';
+}
+
+/**
+ * Merkle proof for proving event inclusion
+ */
+export interface MerkleProof {
+  eventHash: string;                 // Hash of the event being proven
+  proof: string[];                   // Array of sibling hashes to reconstruct root
+  path: number[];                    // Binary path (0=left, 1=right) up the tree
+  root: string;                      // Expected root hash
+  verified?: boolean;                // Verification result
+}
+
+/**
+ * NFT-like metadata for tokenized claims
+ */
+export interface ClaimTokenMetadata {
+  // Standard NFT Fields
+  name: string;                      // e.g., "Foundation Safety Compliance Claim #123"
+  description: string;               // Human-readable claim description
+  image?: string;                    // IPFS/URL to visual representation
+  externalUrl?: string;              // Link to claim details page
+
+  // Claim-Specific Attributes
+  attributes: ClaimAttribute[];      // Key-value pairs like NFT traits
+
+  // Provenance
+  issuer: string;                    // Who issued/created this claim
+  issuedAt: Date;                    // Timestamp of issuance
+  expiresAt?: Date;                  // Optional expiration
+
+  // Verification Data
+  aggregateValue: any;               // The computed/aggregated claim value
+  workflowId: string;                // Template/workflow that generated this
+  executionId: string;               // Specific execution instance
+  sinkIds: string[];                 // Sink node IDs involved
+
+  // Content Addressing
+  metadataIpfsHash?: string;         // IPFS hash of this metadata
+  ledgerIpfsHash?: string;           // IPFS hash of full ledger data
+}
+
+/**
+ * NFT-style attribute (trait) for claim metadata
+ */
+export interface ClaimAttribute {
+  traitType: string;                 // e.g., "Compliance Score", "Risk Level"
+  value: any;                        // Trait value
+  displayType?: 'number' | 'boost_percentage' | 'boost_number' | 'date' | 'string';
+  maxValue?: number;                 // For ranged values
+}
+
+/**
+ * On-chain data for minted claim tokens
+ */
+export interface OnChainClaimData {
+  contractAddress: string;           // Smart contract address
+  tokenId: string;                   // NFT token ID
+  blockchain: string;                // e.g., "arc-testnet", "ethereum", "polygon"
+  txHash: string;                    // Minting transaction hash
+  mintedAt: Date;                    // When minted on-chain
+  ownerAddress: string;              // Current owner wallet address
+
+  // Contract Interaction
+  standard: 'ERC721' | 'ERC1155' | 'custom';
+
+  // Verification
+  merkleRootOnChain: string;         // Merkle root stored in contract
+  verificationMethod?: string;       // How to verify (function signature)
+
+  // Sync State (for Incremental Merkle Trees)
+  onChainLedgerEventCount: number;   // Number of ledger events stored on-chain
+  onChainSinkEventCount: number;     // Number of sink events stored on-chain
+  lastOnChainUpdate?: Date;          // When appendEvents() was last called
+  lastSyncCheck?: Date;              // When we last checked sync status
+
+  // Explorer Links
+  blockExplorerUrl?: string;         // Full URL to view token on block explorer
+}
+
+/**
+ * Service for building Merkle trees from ledger events
+ */
+export interface MerkleTreeBuilder {
+  buildFullLedgerTree(events: any[]): MerkleTree;
+  buildSinkTree(sinkEvents: any[]): MerkleTree;
+  generateInclusionProof(event: any, fullTree: MerkleTree): MerkleProof;
+  verifyProof(proof: MerkleProof): boolean;
+}
+
+/**
+ * Merkle tree structure
+ */
+export interface MerkleTree {
+  root: string;                      // Root hash
+  leaves: string[];                  // Leaf hashes (bottom layer)
+  layers: string[][];                // All layers of the tree
+  depth: number;                     // Tree depth
+  eventCount: number;                // Number of events
+}
+
+/**
+ * Options for tokenizing a claim
+ */
+export interface TokenizeClaimOptions {
+  includeProofs?: boolean;           // Whether to generate inclusion proofs (expensive)
+  uploadToIpfs?: boolean;            // Whether to upload metadata to IPFS
+  mintOnChain?: boolean;             // Whether to mint as on-chain NFT
+  blockchain?: string;               // Target blockchain for minting
+  attributes?: ClaimAttribute[];     // Additional custom attributes
+}
+
+/**
+ * Result of claim tokenization process
+ */
+export interface TokenizeClaimResult {
+  claim: Claim;                      // Updated claim with tokenization data
+  tokenization: ClaimTokenization;   // Generated tokenization data
+  ipfsHashes?: {
+    metadata: string;
+    ledger?: string;
+  };
+  onChainTx?: {
+    txHash: string;
+    tokenId: string;
+    contractAddress: string;
+  };
+  verificationUrl?: string;          // URL for off-chain verification
+}
+
+// ============================================================================
 // CONSTANTS
 // ============================================================================
 

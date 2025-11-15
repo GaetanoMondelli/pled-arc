@@ -98,6 +98,7 @@ export function getPublicClient() {
  * @returns Transaction hash and token ID
  */
 export async function mintClaimOnChain(params: {
+  walletId: string;
   ownerAddress: `0x${string}`;
   claimId: string;
   workflowId: string;
@@ -106,12 +107,15 @@ export async function mintClaimOnChain(params: {
   sinkEvents: any[];
   aggregateValue: any;
   metadataUri: string;
+  claimTitle?: string;
 }): Promise<{
   txHash: `0x${string}`;
   tokenId: bigint;
   contractAddress: `0x${string}`;
+  transactionId: string;
 }> {
   const {
+    walletId,
     ownerAddress,
     claimId,
     workflowId,
@@ -120,9 +124,10 @@ export async function mintClaimOnChain(params: {
     sinkEvents,
     aggregateValue,
     metadataUri,
+    claimTitle,
   } = params;
 
-  // Hash all events
+  // Hash all events using keccak256
   const ledgerEventHashes = hashEvents(ledgerEvents);
   const sinkEventHashes = hashEvents(sinkEvents);
 
@@ -131,52 +136,70 @@ export async function mintClaimOnChain(params: {
     ? aggregateValue
     : JSON.stringify(aggregateValue);
 
-  console.log('🔐 Preparing to mint claim on Arc Testnet...');
+  const contractAddress = getContractAddress();
+
+  console.log('🔐 Minting claim on Arc Testnet via Circle SDK...');
+  console.log(`  Wallet ID: ${walletId}`);
+  console.log(`  Contract: ${contractAddress}`);
   console.log(`  Claim ID: ${claimId}`);
   console.log(`  Owner: ${ownerAddress}`);
   console.log(`  Ledger events: ${ledgerEventHashes.length}`);
   console.log(`  Sink events: ${sinkEventHashes.length}`);
 
-  // TODO: Integrate with Circle SDK to sign transaction
-  // For now, this is a placeholder that shows the structure
+  // Call API route to execute contract via Circle SDK
+  const response = await fetch('/api/circle/contract-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      walletId,
+      contractAddress,
+      abiFunctionSignature: 'mintClaim(address,string,string,string,bytes32[],bytes32[],string,string)',
+      abiParameters: [
+        ownerAddress,
+        claimId,
+        workflowId,
+        executionId,
+        ledgerEventHashes,
+        sinkEventHashes,
+        aggregateValueString,
+        metadataUri,
+      ],
+    }),
+  });
 
-  const contractAddress = getContractAddress();
+  const result = await response.json();
 
-  // This would be the actual Circle SDK contract interaction
-  // const circle = getCircleClient();
-  // const tx = await circle.contractExecution({
-  //   walletId: params.walletId,
-  //   contractAddress,
-  //   abiFunctionSignature: 'mintClaim(address,string,string,string,bytes32[],bytes32[],string,string)',
-  //   abiParameters: [
-  //     ownerAddress,
-  //     claimId,
-  //     workflowId,
-  //     executionId,
-  //     ledgerEventHashes,
-  //     sinkEventHashes,
-  //     aggregateValueString,
-  //     metadataUri,
-  //   ],
-  // });
+  console.log('📦 [Circle Response]:', JSON.stringify(result, null, 2));
 
-  // For demo purposes, return mock data with proper tx hash format (66 chars: 0x + 64 hex)
-  const mockTxHash = ('0x' + Array.from({ length: 64 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('')) as `0x${string}`;
+  if (!result.success) {
+    console.error('❌ [Circle Error]:', result.error);
+    console.error('   Details:', result.details);
+    throw new Error(result.error || 'Failed to mint claim on-chain');
+  }
 
-  const mockTokenId = BigInt(Math.floor(Math.random() * 1000000) + 1); // Random token ID
+  // Circle SDK only returns transactionId initially, NOT txHash
+  const transactionId = result.data?.id || result.data?.transactionId || 'unknown';
 
-  console.log(`✅ Claim minted successfully!`);
-  console.log(`  Transaction: ${mockTxHash}`);
-  console.log(`  Token ID: ${mockTokenId}`);
-  console.log(`  Contract: ${contractAddress}`);
-  console.log(`  Explorer: https://testnet.arcscan.app/tx/${mockTxHash}`);
+  console.log('✅ [Circle SDK] Transaction created!');
+  console.log('  Transaction ID:', transactionId);
 
+  // Use deterministic tokenId based on claim title (name)
+  // This way you can create multiple NFTs for the same claim with different titles
+  const tokenIdSource = claimTitle || claimId; // Use title if provided, otherwise claimId
+  const tokenIdHash = keccak256(toHex(tokenIdSource));
+  const tokenId = BigInt(tokenIdHash);
+
+  console.log('  Token ID from:', tokenIdSource);
+  console.log('  Token ID (hash):', tokenId.toString());
+  console.log('  Contract:', contractAddress);
+  console.log('  Strategy: Poll blockchain directly to verify token exists');
+
+  // Return with transactionId - frontend will poll blockchain to verify token exists
   return {
-    txHash: mockTxHash,
-    tokenId: mockTokenId,
+    txHash: '' as `0x${string}`, // Empty initially
+    tokenId,
     contractAddress,
+    transactionId,
   };
 }
 
@@ -190,16 +213,18 @@ export async function mintClaimOnChain(params: {
  * @returns Transaction hash
  */
 export async function appendEventsOnChain(params: {
+  walletId: string;
   tokenId: bigint;
   newLedgerEvents: any[];
   newSinkEvents: any[];
   newAggregateValue: any;
 }): Promise<{
   txHash: `0x${string}`;
+  transactionId: string;
 }> {
-  const { tokenId, newLedgerEvents, newSinkEvents, newAggregateValue } = params;
+  const { walletId, tokenId, newLedgerEvents, newSinkEvents, newAggregateValue } = params;
 
-  // Hash new events
+  // Hash new events using keccak256
   const newLedgerHashes = hashEvents(newLedgerEvents);
   const newSinkHashes = hashEvents(newSinkEvents);
 
@@ -207,31 +232,49 @@ export async function appendEventsOnChain(params: {
     ? newAggregateValue
     : JSON.stringify(newAggregateValue);
 
-  console.log('🔄 Appending events to claim on Arc Testnet...');
+  const contractAddress = getContractAddress();
+
+  console.log('🔄 Appending events to claim on Arc Testnet via Circle SDK...');
+  console.log(`  Wallet ID: ${walletId}`);
+  console.log(`  Contract: ${contractAddress}`);
   console.log(`  Token ID: ${tokenId}`);
   console.log(`  New ledger events: ${newLedgerHashes.length}`);
   console.log(`  New sink events: ${newSinkHashes.length}`);
 
-  // TODO: Integrate with Circle SDK
-  // const circle = getCircleClient();
-  // const tx = await circle.contractExecution({
-  //   walletId: params.walletId,
-  //   contractAddress: getContractAddress(),
-  //   abiFunctionSignature: 'appendEvents(uint256,bytes32[],bytes32[],string)',
-  //   abiParameters: [tokenId, newLedgerHashes, newSinkHashes, aggregateValueString],
-  // });
+  // Call API route to execute contract via Circle SDK
+  const response = await fetch('/api/circle/contract-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      walletId,
+      contractAddress,
+      abiFunctionSignature: 'appendEvents(uint256,bytes32[],bytes32[],string)',
+      abiParameters: [
+        tokenId.toString(), // Convert BigInt to string for JSON
+        newLedgerHashes,
+        newSinkHashes,
+        aggregateValueString,
+      ],
+    }),
+  });
 
-  // Generate proper tx hash format (66 chars: 0x + 64 hex)
-  const mockTxHash = ('0x' + Array.from({ length: 64 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('')) as `0x${string}`;
+  const result = await response.json();
 
-  console.log(`✅ Events appended successfully!`);
-  console.log(`  Transaction: ${mockTxHash}`);
-  console.log(`  Explorer: https://testnet.arcscan.app/tx/${mockTxHash}`);
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to append events on-chain');
+  }
+
+  // Extract transaction data from Circle response
+  const transactionId = result.data?.id || 'unknown';
+  const txHash = result.data?.txHash as `0x${string}` || '0x' as `0x${string}`;
+
+  console.log(`✅ Events append transaction submitted!`);
+  console.log(`  Transaction ID: ${transactionId}`);
+  console.log(`  Transaction Hash: ${txHash || 'Pending...'}`);
 
   return {
-    txHash: mockTxHash,
+    txHash: txHash || ('0x' + '0'.repeat(64)) as `0x${string}`,
+    transactionId,
   };
 }
 
@@ -264,6 +307,39 @@ export async function getClaimStateOnChain(tokenId: bigint): Promise<{
     sinkEventCount,
     aggregateValue,
   };
+}
+
+/**
+ * Check if a token exists on-chain by reading the contract
+ * Returns the owner address if it exists, null otherwise
+ */
+export async function checkTokenExists(tokenId: bigint): Promise<{
+  exists: boolean;
+  owner?: `0x${string}`;
+}> {
+  try {
+    const client = getPublicClient();
+    const contractAddress = getContractAddress();
+
+    // Try to get the owner of the token
+    const owner = await client.readContract({
+      address: contractAddress,
+      abi: CLAIM_CONTRACT_ABI,
+      functionName: 'ownerOf',
+      args: [tokenId],
+    }) as `0x${string}`;
+
+    // If we got an owner, token exists
+    if (owner && owner !== '0x0000000000000000000000000000000000000000') {
+      return { exists: true, owner };
+    }
+
+    return { exists: false };
+  } catch (error) {
+    // If ownerOf reverts, token doesn't exist
+    console.log(`Token ${tokenId} does not exist yet`);
+    return { exists: false };
+  }
 }
 
 /**

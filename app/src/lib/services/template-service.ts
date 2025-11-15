@@ -178,6 +178,89 @@ class TemplateService {
     }
   }
 
+  // NEW STREAMING API METHODS
+
+  /**
+   * Push new events to an existing execution (appends, doesn't replace)
+   */
+  async pushEventsToExecution(executionId: string, events: any[]): Promise<{
+    success: boolean;
+    eventsAdded: number;
+    totalEvents: number;
+  }> {
+    const response = await fetch(`/api/executions/${executionId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.details || 'Failed to push events');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Create a new execution using the streaming API
+   */
+  async createExecutionWithEvents(params: {
+    templateId: string;
+    name: string;
+    description?: string;
+    externalEvents?: any[];
+  }): Promise<{ executionId: string; execution: ExecutionDocument; eventCount: number }> {
+    const response = await fetch('/api/executions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.details || 'Failed to create execution');
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Get events from an execution with pagination
+   */
+  async getExecutionEvents(executionId: string, options?: {
+    offset?: number;
+    limit?: number;
+    type?: string;
+    since?: number;
+  }): Promise<{
+    success: boolean;
+    events: any[];
+    pagination: {
+      offset: number;
+      limit: number;
+      total: number;
+      hasMore: boolean;
+      returned: number;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (options?.offset !== undefined) params.set('offset', options.offset.toString());
+    if (options?.limit !== undefined) params.set('limit', options.limit.toString());
+    if (options?.type) params.set('type', options.type);
+    if (options?.since) params.set('since', options.since.toString());
+
+    const url = `/api/executions/${executionId}/events${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.details || 'Failed to fetch events');
+    }
+
+    return await response.json();
+  }
+
   async initializeAdminStructure(): Promise<void> {
     const response = await fetch(`${this.baseUrl}/init`, {
       method: 'POST',

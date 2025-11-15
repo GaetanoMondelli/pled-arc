@@ -144,7 +144,7 @@ contract IncrementalVerifiableClaim {
         bytes32[] memory initialSinkEvents,
         string memory aggregateValue,
         string memory metadataUri
-    ) public onlyDeployer returns (uint256) {
+    ) public returns (uint256) {
         require(to != address(0), "Cannot mint to zero address");
         require(initialLedgerEvents.length > 0, "Need at least one ledger event");
 

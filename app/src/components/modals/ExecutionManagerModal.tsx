@@ -224,38 +224,55 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
       console.log('💾 Saving external events for replay:', externalEvents.length);
       console.log('💾 External events data:', externalEvents);
 
-      // Create execution document with external events only
-      const now = Date.now();
-      const executionData = {
-        name: name,
-        description: description,
-        templateId: currentTemplate.id,
-        templateName: currentTemplate.name,
-        scenarioName: scenario.name,
-        // Use timestamps for compatibility
-        startedAt: now,
-        lastSavedAt: now,
-        createdAt: new Date(),
-        // Store external events for replay
-        externalEvents: externalEvents,
-        // Store scenario for context
-        scenario: scenario,
-        // Statistics
-        totalExternalEvents: externalEvents.length,
-        eventTypes: [...new Set(externalEvents.map(e => e.type))],
-        // Mark as not completed since this is for replay
-        isCompleted: false,
-      };
+      // Check if execution with this name already exists (from URL or loaded state)
+      let existingExecution = currentlyLoadedExecution
+        ? availableExecutions.find(ex => ex.id === currentlyLoadedExecution)
+        : availableExecutions.find(ex => ex.name === name);
 
-      console.log('💾 Final execution data being saved:', executionData);
+      if (existingExecution) {
+        // APPEND mode: Push new events to existing execution
+        const existingEventCount = existingExecution.externalEvents?.length || existingExecution.events?.length || 0;
+        const newEvents = externalEvents.slice(existingEventCount); // Only new events
 
-      // Save using the current template service (need to update this to support external events)
-      await templateService.saveExecution(executionData);
+        if (newEvents.length > 0) {
+          console.log(`💾 Appending ${newEvents.length} new events to existing execution ${existingExecution.id}`);
 
-      toast({
-        title: "External events saved successfully",
-        description: `Execution "${name}" has been saved with ${externalEvents.length} external events for replay.`,
-      });
+          const result = await templateService.pushEventsToExecution(existingExecution.id, newEvents);
+
+          toast({
+            title: "Events appended successfully",
+            description: `Added ${result.eventsAdded} new events to "${name}". Total: ${result.totalEvents} events.`,
+          });
+        } else {
+          console.log('💾 No new events to append');
+          toast({
+            title: "No new events",
+            description: `Execution "${name}" already has all ${existingEventCount} events.`,
+          });
+        }
+      } else {
+        // CREATE mode: Create new execution with events
+        console.log(`💾 Creating new execution "${name}" with ${externalEvents.length} events`);
+
+        const result = await templateService.createExecutionWithEvents({
+          templateId: currentTemplate.id,
+          name,
+          description,
+          externalEvents
+        });
+
+        setCurrentlyLoadedExecution(result.executionId);
+
+        // Update URL to reflect current execution
+        const newUrl = `/template-editor/${currentTemplate.id}?execution=${result.executionId}`;
+        console.log('🔄 Updating URL to:', newUrl);
+        router.replace(newUrl);
+
+        toast({
+          title: "Execution created successfully",
+          description: `Created "${name}" with ${result.eventCount} external events.`,
+        });
+      }
 
       // Reset form only if it was a manual save
       if (name === newExecutionName.trim()) {
@@ -264,7 +281,7 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
         setShowSaveForm(false);
       }
 
-      // Reload executions to show the new one
+      // Reload executions to show the updated/new one
       await loadExecutions();
     } catch (error) {
       console.error("Error saving execution:", error);
