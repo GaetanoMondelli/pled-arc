@@ -22,10 +22,10 @@ export function useTemplateEditor() {
   const [errorMessages, setErrorMessages] = useState<string[]>([]);
   const [scenario, setScenario] = useState<any>(null);
   const [globalActivityLog, setGlobalActivityLog] = useState<any[]>([]);
-  const [currentExecution, setCurrentExecution] = useState<any>(null);
 
   // Legacy store selectors for template management (keeping this temporarily)
   const currentTemplate = useSimulationStore(state => state.currentTemplate);
+  const currentExecution = useSimulationStore(state => state.currentExecution);
   const hasUnsavedChanges = useSimulationStore(state => state.hasUnsavedChanges);
   const loadTemplates = useSimulationStore(state => state.loadTemplates);
   const updateCurrentTemplate = useSimulationStore(state => state.updateCurrentTemplate);

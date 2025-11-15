@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { Navbar } from "@/components/Navbar";
 import GraphVisualization from "@/components/graph/GraphVisualization";
 import GlobalLedgerModal from "@/components/modals/GlobalLedgerModal";
 import NodeInspectorModal from "@/components/modals/NodeInspectorModal";
@@ -14,7 +15,7 @@ import { EventQueueModal } from "@/components/modals/EventQueueModal";
 import { ExternalEventsModal } from "@/components/modals/ExternalEventsModal";
 import StateInspectorPanel from "@/components/ui/state-inspector-panel";
 import { useToast } from "@/hooks/use-toast";
-import { useSimulationStore } from "@/stores/simulationStore";
+import { useSimulationStore } from "@/lib/stores/legacy/simulationStore";
 
 // Import hooks
 import {
@@ -61,24 +62,6 @@ export default function TemplateEditorPage() {
   // Track if we've loaded the initial step from URL
   const [hasLoadedURLStep, setHasLoadedURLStep] = useState(false);
 
-  // Create a mock engine object for modals that provides server data
-  const serverEngineAdapter = {
-    getQueue: () => ({
-      size: () => serverQueueSnapshot?.size || 0,
-      getSnapshots: () => serverQueueSnapshot?.snapshots || [],
-      getProcessedCount: () => serverQueueSnapshot?.processed || 0,
-      getTotalCount: () => serverQueueSnapshot?.total || 0,
-      // Get full event history from server API for EventQueueModal
-      getEventHistory: () => {
-        return serverQueueSnapshot?.eventHistory || [];
-      },
-    }),
-    getLedger: () => ({
-      getActivities: () => serverActivities,
-    }),
-    getActivities: () => serverActivities,
-  };
-
   // Update URL when step changes
   useEffect(() => {
     if (currentStep > 0) {
@@ -109,6 +92,30 @@ export default function TemplateEditorPage() {
   // Event-driven simulation (new system)
   const eventDriven = useEventDrivenSimulation();
 
+  // Create a mock engine object for modals that provides server data
+  // Must be defined AFTER editor to access editor.scenario
+  const serverEngineAdapter = React.useMemo(() => ({
+    getQueue: () => ({
+      size: () => serverQueueSnapshot?.size || 0,
+      getSnapshots: () => serverQueueSnapshot?.snapshots || [],
+      getProcessedCount: () => serverQueueSnapshot?.processed || 0,
+      getTotalCount: () => serverQueueSnapshot?.total || 0,
+      // Get full event history from server API for EventQueueModal
+      getEventHistory: () => {
+        return serverQueueSnapshot?.eventHistory || [];
+      },
+    }),
+    getLedger: () => ({
+      getActivities: () => serverActivities,
+    }),
+    getActivities: () => serverActivities,
+    // Wrap editor.scenario to provide getScenarioInfo method for ExternalEventCreator
+    scenario: editor.scenario ? {
+      ...editor.scenario,
+      getScenarioInfo: () => editor.scenario,
+    } : undefined,
+  }), [serverQueueSnapshot, serverActivities, editor.scenario]);
+
   // Sync step with URL query param and load that step's state (after editor is defined)
   useEffect(() => {
     if (hasLoadedURLStep) return; // Only load once
@@ -125,7 +132,7 @@ export default function TemplateEditorPage() {
           setHasLoadedURLStep(true);
 
           try {
-            const { engineAPIService } = await import('@/lib/services/engine-api-service');
+            const { engineAPIService } = await import('@/lib/engine-api-service');
             const result = await engineAPIService.executeStep(
               editor.currentTemplate.id,
               executionParam,
@@ -210,7 +217,7 @@ export default function TemplateEditorPage() {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
         const autoTemplateName = `Auto-Save ${editor.scenario.name || 'Scenario'} ${timestamp}`;
 
-        const { templateService } = await import('@/lib/services/template-service');
+        const { templateService } = await import('@/lib/template-service');
         const template = await templateService.createTemplate({
           name: autoTemplateName,
           description: 'Automatically created template for simulation',
@@ -230,56 +237,20 @@ export default function TemplateEditorPage() {
         });
       }
 
-      // AUTO-CREATE EXECUTION: Create minimal execution if needed
+      // DO NOT AUTO-CREATE EXECUTION - user must manually save
       if (!executionId) {
-        console.log('📝 No execution found - creating auto-execution...');
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const autoExecutionName = `Simulation Run ${timestamp}`;
-
-        // Get external events from the external queue if available
-        const externalEvents = editor.externalQueue?.getAllEvents() || [];
-
-        const { templateService } = await import('@/lib/services/template-service');
-        const execution = await templateService.saveExecution({
-          templateId: templateId!,
-          name: autoExecutionName,
-          description: 'Automatically created execution for simulation',
-          scenario: editor.scenario,
-          externalEvents: externalEvents,
-          totalExternalEvents: externalEvents.length,
-          eventTypes: [...new Set(externalEvents.map((e: any) => e.type))],
-          nodeStates: {},
-          currentTime: 0,
-          eventCounter: 0,
-          globalActivityLog: [],
-          nodeActivityLogs: {},
-          isCompleted: false,
-        });
-
-        executionId = execution.id;
-
-        // Update the current execution in the store
-        useSimulationStore.setState({ currentExecution: execution });
-
-        // Reset accumulated state for new execution
-        setCurrentStep(0);
-        setServerActivities([]);
-        setServerQueueSnapshot(null);
-        setActiveNodeIds([]);
-
-        console.log('✅ Auto-created execution:', executionId);
-        console.log('  - External events:', externalEvents.length);
-
         toast({
-          title: 'Execution Created',
-          description: `Running simulation...`,
+          variant: 'destructive',
+          title: 'No Execution Selected',
+          description: 'Please save or load an execution before running the simulation'
         });
+        setIsStepLoading(false);
+        return;
       }
 
       console.log('🎯 Starting simulation (seeking to end)...');
 
-      const { engineAPIService } = await import('@/lib/services/engine-api-service');
+      const { engineAPIService } = await import('@/lib/engine-api-service');
       const result = await engineAPIService.executeStep(
         templateId,
         executionId,
@@ -327,6 +298,14 @@ export default function TemplateEditorPage() {
     let templateId = editor.currentTemplate?.id;
     let executionId = editor.currentExecution?.id;
 
+    console.log('🎯 STEP BUTTON CLICKED - Debug info:', {
+      'editor.currentTemplate': editor.currentTemplate,
+      'editor.currentExecution': editor.currentExecution,
+      'templateId': templateId,
+      'executionId': executionId,
+      'URL': window.location.href
+    });
+
     // Check if we have a scenario to work with
     if (!editor.scenario) {
       toast({
@@ -347,7 +326,7 @@ export default function TemplateEditorPage() {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
         const autoTemplateName = `Auto-Save ${editor.scenario.name || 'Scenario'} ${timestamp}`;
 
-        const { templateService } = await import('@/lib/services/template-service');
+        const { templateService } = await import('@/lib/template-service');
         const template = await templateService.createTemplate({
           name: autoTemplateName,
           description: 'Automatically created template for step execution',
@@ -367,57 +346,21 @@ export default function TemplateEditorPage() {
         });
       }
 
-      // AUTO-CREATE EXECUTION: Create minimal execution if needed
+      // DO NOT AUTO-CREATE EXECUTION - user must manually save
       if (!executionId) {
-        console.log('📝 No execution found - creating auto-execution...');
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const autoExecutionName = `Step Execution ${timestamp}`;
-
-        // Get external events from the external queue if available
-        const externalEvents = editor.externalQueue?.getAllEvents() || [];
-
-        const { templateService } = await import('@/lib/services/template-service');
-        const execution = await templateService.saveExecution({
-          templateId: templateId!,
-          name: autoExecutionName,
-          description: 'Automatically created execution for step-by-step simulation',
-          scenario: editor.scenario,
-          externalEvents: externalEvents,
-          totalExternalEvents: externalEvents.length,
-          eventTypes: [...new Set(externalEvents.map((e: any) => e.type))],
-          nodeStates: {},
-          currentTime: 0,
-          eventCounter: 0,
-          globalActivityLog: [],
-          nodeActivityLogs: {},
-          isCompleted: false,
-        });
-
-        executionId = execution.id;
-
-        // Update the current execution in the store
-        useSimulationStore.setState({ currentExecution: execution });
-
-        // Reset accumulated state for new execution
-        setCurrentStep(0);
-        setServerActivities([]);
-        setServerQueueSnapshot(null);
-        setActiveNodeIds([]);
-
-        console.log('✅ Auto-created execution:', executionId);
-        console.log('  - External events:', externalEvents.length);
-
         toast({
-          title: 'Execution Created',
-          description: `Ready to step through simulation`,
+          variant: 'destructive',
+          title: 'No Execution Selected',
+          description: 'Please save or load an execution before stepping through the simulation'
         });
+        setIsStepLoading(false);
+        return;
       }
 
       // Now execute the step using server API
       console.log('🎯 Using SERVER-ONLY API');
 
-      const { engineAPIService } = await import('@/lib/services/engine-api-service');
+      const { engineAPIService } = await import('@/lib/engine-api-service');
       const result = await engineAPIService.executeStep(
         templateId!,
         executionId!,
@@ -535,7 +478,7 @@ export default function TemplateEditorPage() {
     try {
       console.log('🎯 Seeking to end of simulation...');
 
-      const { engineAPIService } = await import('@/lib/services/engine-api-service');
+      const { engineAPIService } = await import('@/lib/engine-api-service');
       const result = await engineAPIService.executeStep(
         templateId,
         executionId,
@@ -601,7 +544,7 @@ export default function TemplateEditorPage() {
 
     if (editor.currentTemplate) {
       // Just update the local template state - don't save to backend yet
-      const { useSimulationStore } = await import('@/stores/simulationStore');
+      const { useSimulationStore } = await import('@/lib/stores/legacy/simulationStore');
       useSimulationStore.setState((state) => ({
         currentTemplate: {
           ...state.currentTemplate!,
@@ -738,7 +681,7 @@ export default function TemplateEditorPage() {
   const handleNavigateToNode = async (nodeId: string) => {
     try {
       // Import the navigation service dynamically
-      const { nodeNavigationService } = await import('@/lib/services/claims/nodeNavigationService');
+      const { nodeNavigationService } = await import('@/lib/services/nodeNavigationService');
 
       // Check if node exists
       if (!nodeNavigationService.nodeExists(nodeId)) {
@@ -839,6 +782,9 @@ export default function TemplateEditorPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+      {/* Navbar */}
+      <Navbar />
+
       {/* Toolbar */}
       <SimulationToolbar
         currentTemplate={editor.currentTemplate}

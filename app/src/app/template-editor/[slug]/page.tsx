@@ -46,6 +46,7 @@ function TemplateByIdPageContent({ slug }: { slug: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loadTemplate = useSimulationStore(state => state.loadTemplate);
+  const loadExecution = useSimulationStore(state => state.loadExecution);
   const currentTemplate = useSimulationStore(state => state.currentTemplate);
 
   // Function to load execution from URL - simplified to match modal logic exactly
@@ -53,7 +54,11 @@ function TemplateByIdPageContent({ slug }: { slug: string }) {
     try {
       console.log(`🔗 Starting URL load for execution "${executionId}"`);
 
-      // Get the execution data first
+      // Use the store's loadExecution to properly set currentExecution
+      await loadExecution(executionId);
+      console.log(`🔗 Execution loaded into store as currentExecution`);
+
+      // Get the execution data for loading external events
       const execution = await templateService.getExecution(executionId);
       console.log(`🔗 Got execution data:`, execution);
 
@@ -106,15 +111,29 @@ function TemplateByIdPageContent({ slug }: { slug: string }) {
       externalQueue.clear();
 
       for (const event of externalEvents) {
-        // Support both 'targetDataSourceId' and 'nodeId' for compatibility
-        await externalQueue.addEvent({
-          id: event.id,
-          timestamp: event.timestamp,
-          type: event.type,
-          source: event.source || 'EXTERNAL',
-          data: event.data,
-          targetDataSourceId: event.targetDataSourceId || event.nodeId
-        });
+        // Support both old and new event formats
+        // New format: { timestamp, value: { id, type, source, data, targetDataSourceId } }
+        // Old format: { id, timestamp, type, source, data, targetDataSourceId }
+        let eventToAdd;
+
+        if (event.value) {
+          // New format - already structured correctly
+          eventToAdd = event;
+        } else {
+          // Old format - convert to new format
+          eventToAdd = {
+            timestamp: event.timestamp,
+            value: {
+              id: event.id,
+              type: event.type,
+              source: event.source || 'EXTERNAL',
+              data: event.data,
+              targetDataSourceId: event.targetDataSourceId || event.nodeId
+            }
+          };
+        }
+
+        await externalQueue.addEvent(eventToAdd);
       }
 
       console.log(`🔗 Successfully loaded ${externalEvents.length} events into queue`);

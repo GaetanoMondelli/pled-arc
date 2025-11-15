@@ -179,14 +179,16 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
     }
 
     try {
-      // Create external event with user-specified timestamp
+      // Create external event with new format: { timestamp, value: { ... } }
       const externalEvent = {
-        id: eventData.id,
         timestamp: eventData.timestamp,
-        type: eventData.type,
-        source: eventData.source,
-        data: JSON.parse(eventData.data),
-        targetDataSourceId: eventData.targetDataSourceId || undefined
+        value: {
+          id: eventData.id,
+          type: eventData.type,
+          source: eventData.source,
+          data: JSON.parse(eventData.data),
+          targetDataSourceId: eventData.targetDataSourceId || undefined
+        }
       };
 
       // Add to external queue

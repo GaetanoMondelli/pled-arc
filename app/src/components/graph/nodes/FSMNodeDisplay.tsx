@@ -15,9 +15,9 @@ const FSMNodeDisplay: React.FC<NodeProps<RFNodeData>> = (props) => {
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   // Subscribe to store for reactive updates
-  const fsmStateFromStore = useSimulationStore(state => state.nodeStates[id]);
+  const fsmStateFromStore = useSimulationStore(state => state.nodeStates?.[id]);
   const activityLog = useSimulationStore(state => state.globalActivityLog);
-  const configFromStore = useSimulationStore(state => state.nodesConfig[id]);
+  const configFromStore = useSimulationStore(state => state.nodesConfig?.[id]);
   const config = configFromStore || data.config;
   
   const fsmState = fsmStateFromStore || ((data as any).nodeState);

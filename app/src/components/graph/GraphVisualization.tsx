@@ -169,8 +169,8 @@ export default function GraphVisualization({
   // Sync ReactFlow nodes with computed nodes AND update with runtime info
   useEffect(() => {
     const enrichedNodes = reactFlowNodes.map(node => {
-      const nodeState = nodeStates[node.id];
-      const recentLogs = nodeActivityLogs[node.id]?.filter(log => currentTime - log.timestamp <= 2) || [];
+      const nodeState = nodeStates?.[node.id];
+      const recentLogs = nodeActivityLogs?.[node.id]?.filter(log => currentTime - log.timestamp <= 2) || [];
       const latestLog = recentLogs[recentLogs.length - 1];
 
       // Calculate runtime details based on node type
