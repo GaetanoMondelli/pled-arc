@@ -274,6 +274,13 @@ export function ClaimsRegistry() {
     if (!userClaimsService) return;
 
     try {
+      // Don't save to Firestore if txHash is still pending
+      const txHash = updatedClaim.tokenization?.onChain?.txHash;
+      if (txHash === 'pending') {
+        console.log('⏳ TxHash pending - will update when available');
+        return;
+      }
+
       // Update claim in Firestore with on-chain data
       await userClaimsService.updateClaim(updatedClaim.id, {
         tokenization: updatedClaim.tokenization,
