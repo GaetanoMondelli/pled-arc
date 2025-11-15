@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^9.3.0",
+    "@circle-fin/smart-contract-platform": "^9.3.0",
     "@google-cloud/storage": "^7.17.3",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "solc": "^0.8.30"
   },
   "scripts": {
     "node": "npx hardhat node",
