@@ -3,12 +3,83 @@
  */
 
 import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
+import { createPublicClient, http } from 'viem';
+import { defineChain } from 'viem';
 
 // Treasury contract address (set after deployment)
 export const TREASURY_DAO_ADDRESS = process.env.NEXT_PUBLIC_TREASURY_DAO_ADDRESS || '';
 
 // USDC address on Arc Testnet
 const USDC_ARC_TESTNET = '0x3600000000000000000000000000000000000000';
+
+// Define Arc Testnet chain for viem
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: 'Arc Testnet',
+  network: 'arc-testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'ARC',
+    symbol: 'ARC',
+  },
+  rpcUrls: {
+    default: { http: ['https://rpc.testnet.arc.network'] },
+    public: { http: ['https://rpc.testnet.arc.network'] },
+  },
+  blockExplorers: {
+    default: { name: 'Arcscan', url: 'https://testnet.arcscan.app' },
+  },
+  testnet: true,
+});
+
+// Treasury contract ABI
+const TREASURY_ABI = [
+  {
+    inputs: [],
+    name: 'getAllOfficers',
+    outputs: [
+      { internalType: 'address[]', name: '', type: 'address[]' },
+      { internalType: 'uint256[]', name: '', type: 'uint256[]' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'totalShares',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'officer', type: 'address' }],
+    name: 'getSharePercentage',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getTreasuryBalance',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getOfficerCount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getPaymentCount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
 
 interface OfficerInfo {
   address: string;
@@ -46,42 +117,25 @@ function getCircleClient() {
  * Get all officers and their share allocations from the blockchain
  */
 export async function getAllOfficersFromChain(contractAddress: string = TREASURY_DAO_ADDRESS): Promise<OfficerInfo[]> {
-  const client = getCircleClient();
-
   try {
-    // Find Arc Testnet wallet to call contract
-    const wallets = await client.listWallets({});
-    const arcWallet = wallets.data?.wallets?.find(w => w.blockchain === 'ARC-TESTNET');
-
-    if (!arcWallet) {
-      throw new Error('No ARC-TESTNET wallet found');
-    }
-
-    // Call getAllOfficers() view function
-    const response = await client.callContractFunction({
-      walletId: arcWallet.id,
-      contractAddress: contractAddress,
-      abiFunctionSignature: 'getAllOfficers()',
-      abiParameters: [],
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(),
     });
 
-    // Parse response
-    // Response format: [[address[], uint256[]]]
-    const data = response.data;
-
-    if (!data || !Array.isArray(data) || data.length < 2) {
-      throw new Error('Invalid response from getAllOfficers');
-    }
-
-    const addresses = data[0] as string[];
-    const shares = data[1] as string[];
+    // Call getAllOfficers() view function
+    const [addresses, sharesArray] = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: TREASURY_ABI,
+      functionName: 'getAllOfficers',
+    });
 
     // Calculate total shares
-    const totalShares = shares.reduce((sum, s) => sum + parseInt(s), 0);
+    const totalShares = sharesArray.reduce((sum, s) => sum + Number(s), 0);
 
     // Build officer info array
     const officers: OfficerInfo[] = addresses.map((address, i) => {
-      const officerShares = parseInt(shares[i]);
+      const officerShares = Number(sharesArray[i]);
       const percentage = totalShares > 0 ? (officerShares * 10000) / totalShares : 0;
 
       return {
@@ -105,33 +159,27 @@ export async function getOfficerInfo(
   officerAddress: string,
   contractAddress: string = TREASURY_DAO_ADDRESS
 ): Promise<{ shares: number; percentage: number }> {
-  const client = getCircleClient();
-
   try {
-    const wallets = await client.listWallets({});
-    const arcWallet = wallets.data?.wallets?.find(w => w.blockchain === 'ARC-TESTNET');
-
-    if (!arcWallet) {
-      throw new Error('No ARC-TESTNET wallet found');
-    }
-
-    // Call getOfficerInfo(address) view function
-    const response = await client.callContractFunction({
-      walletId: arcWallet.id,
-      contractAddress: contractAddress,
-      abiFunctionSignature: 'getOfficerInfo(address)',
-      abiParameters: [officerAddress],
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(),
     });
 
-    const data = response.data;
+    // Call getSharePercentage(address) view function
+    const percentage = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: TREASURY_ABI,
+      functionName: 'getSharePercentage',
+      args: [officerAddress as `0x${string}`],
+    });
 
-    if (!data || !Array.isArray(data) || data.length < 2) {
-      throw new Error('Invalid response from getOfficerInfo');
-    }
+    // Get all officers to find shares for this specific address
+    const officers = await getAllOfficersFromChain(contractAddress);
+    const officer = officers.find(o => o.address.toLowerCase() === officerAddress.toLowerCase());
 
     return {
-      shares: parseInt(data[0]),
-      percentage: parseInt(data[1]), // Basis points
+      shares: officer?.shares || 0,
+      percentage: Number(percentage), // Basis points
     };
   } catch (error) {
     console.error('Error reading officer info:', error);
@@ -143,25 +191,19 @@ export async function getOfficerInfo(
  * Get total shares from the blockchain
  */
 export async function getTotalShares(contractAddress: string = TREASURY_DAO_ADDRESS): Promise<number> {
-  const client = getCircleClient();
-
   try {
-    const wallets = await client.listWallets({});
-    const arcWallet = wallets.data?.wallets?.find(w => w.blockchain === 'ARC-TESTNET');
-
-    if (!arcWallet) {
-      throw new Error('No ARC-TESTNET wallet found');
-    }
-
-    // Call totalShares() view function
-    const response = await client.callContractFunction({
-      walletId: arcWallet.id,
-      contractAddress: contractAddress,
-      abiFunctionSignature: 'totalShares()',
-      abiParameters: [],
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(),
     });
 
-    return parseInt(response.data as string);
+    const totalShares = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: TREASURY_ABI,
+      functionName: 'totalShares',
+    });
+
+    return Number(totalShares);
   } catch (error) {
     console.error('Error reading total shares:', error);
     throw error;
@@ -172,25 +214,19 @@ export async function getTotalShares(contractAddress: string = TREASURY_DAO_ADDR
  * Get treasury USDC balance from the blockchain
  */
 export async function getTreasuryBalance(contractAddress: string = TREASURY_DAO_ADDRESS): Promise<string> {
-  const client = getCircleClient();
-
   try {
-    const wallets = await client.listWallets({});
-    const arcWallet = wallets.data?.wallets?.find(w => w.blockchain === 'ARC-TESTNET');
-
-    if (!arcWallet) {
-      throw new Error('No ARC-TESTNET wallet found');
-    }
-
-    // Call getTreasuryBalance() view function
-    const response = await client.callContractFunction({
-      walletId: arcWallet.id,
-      contractAddress: contractAddress,
-      abiFunctionSignature: 'getTreasuryBalance()',
-      abiParameters: [],
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(),
     });
 
-    return response.data as string;
+    const balance = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: TREASURY_ABI,
+      functionName: 'getTreasuryBalance',
+    });
+
+    return balance.toString();
   } catch (error) {
     console.error('Error reading treasury balance:', error);
     throw error;
@@ -201,25 +237,19 @@ export async function getTreasuryBalance(contractAddress: string = TREASURY_DAO_
  * Get payment history count from the blockchain
  */
 export async function getPaymentCount(contractAddress: string = TREASURY_DAO_ADDRESS): Promise<number> {
-  const client = getCircleClient();
-
   try {
-    const wallets = await client.listWallets({});
-    const arcWallet = wallets.data?.wallets?.find(w => w.blockchain === 'ARC-TESTNET');
-
-    if (!arcWallet) {
-      throw new Error('No ARC-TESTNET wallet found');
-    }
-
-    // Call getPaymentCount() view function
-    const response = await client.callContractFunction({
-      walletId: arcWallet.id,
-      contractAddress: contractAddress,
-      abiFunctionSignature: 'getPaymentCount()',
-      abiParameters: [],
+    const publicClient = createPublicClient({
+      chain: arcTestnet,
+      transport: http(),
     });
 
-    return parseInt(response.data as string);
+    const count = await publicClient.readContract({
+      address: contractAddress as `0x${string}`,
+      abi: TREASURY_ABI,
+      functionName: 'getPaymentCount',
+    });
+
+    return Number(count);
   } catch (error) {
     console.error('Error reading payment count:', error);
     throw error;

@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity, Coins, CheckCircle, AlertCircle } from "lucide-react";
+import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity, Coins, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
 import { createUserClaimsService } from "@/lib/services/claimsService";
 import { useSession } from "next-auth/react";
 import {
@@ -512,6 +512,71 @@ export function ClaimsRegistry() {
     }));
   };
 
+  const handleExecuteTreasuryPayment = async (claim: Claim) => {
+    const aggregatedValue = state.aggregatedValues[claim.id];
+
+    if (aggregatedValue === undefined || aggregatedValue === null || aggregatedValue === 'Error') {
+      alert('Cannot execute payment: No valid aggregated value found for this claim.');
+      return;
+    }
+
+    // Extract the amount to pay
+    let amountToPay: number;
+
+    if (typeof aggregatedValue === 'object') {
+      // Try to extract amount from object (e.g., {totalProfit: 100})
+      const values = Object.values(aggregatedValue);
+      if (values.length === 0 || typeof values[0] !== 'number') {
+        alert('Cannot execute payment: Aggregated value does not contain a valid numeric amount.');
+        return;
+      }
+      amountToPay = values[0] as number;
+    } else if (typeof aggregatedValue === 'number') {
+      amountToPay = aggregatedValue;
+    } else {
+      amountToPay = parseFloat(String(aggregatedValue));
+      if (isNaN(amountToPay)) {
+        alert('Cannot execute payment: Aggregated value is not numeric.');
+        return;
+      }
+    }
+
+    if (amountToPay <= 0) {
+      alert('Cannot execute payment: Amount must be greater than 0.');
+      return;
+    }
+
+    const confirmMessage = `Execute treasury payment of ${amountToPay} USDC?\n\nThis will distribute funds to shareholders based on their allocation percentages.`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Call the treasury API to distribute profits
+      const response = await fetch('/api/treasury', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'distribute',
+          amount: amountToPay.toString(),
+          claimId: claim.id,
+          claimTitle: claim.title,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`Payment executed successfully!\n\nTransaction Hash: ${result.data.txHash}\nAmount Distributed: ${amountToPay} USDC`);
+      } else {
+        throw new Error(result.error || 'Payment execution failed');
+      }
+    } catch (error) {
+      console.error('Error executing treasury payment:', error);
+      alert(`Failed to execute payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Format date for display
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "N/A";
@@ -867,6 +932,16 @@ export function ClaimsRegistry() {
                             <Activity className="w-4 h-4" />
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleExecuteTreasuryPayment(claim)}
+                          className="h-8 w-8 p-0 text-green-600 hover:text-green-800"
+                          title="Execute treasury payment"
+                          disabled={!state.aggregatedValues[claim.id] || state.aggregatedValues[claim.id] === 'Error'}
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

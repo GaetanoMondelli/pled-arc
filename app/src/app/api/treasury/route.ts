@@ -7,7 +7,9 @@ import {
   getPaymentCount,
   formatPercentage,
   weiToUsdc,
+  distributeProfits,
 } from '@/lib/services/treasury-contract-service';
+import { createHash } from 'crypto';
 
 /**
  * GET /api/treasury
@@ -112,6 +114,97 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to read treasury state',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/treasury
+ * Execute treasury actions (distribute profits, pay salaries, etc.)
+ *
+ * Body:
+ * - action: 'distribute' | 'salary'
+ * - amount: amount in USDC (string)
+ * - claimId: claim ID for tracking
+ * - claimTitle: claim title for document hash
+ * - contractAddress: optional contract address
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { action, amount, claimId, claimTitle, contractAddress } = body;
+
+    if (!action) {
+      return NextResponse.json(
+        { success: false, error: 'action parameter required' },
+        { status: 400 }
+      );
+    }
+
+    switch (action) {
+      case 'distribute': {
+        if (!amount) {
+          return NextResponse.json(
+            { success: false, error: 'amount parameter required' },
+            { status: 400 }
+          );
+        }
+
+        // Convert USDC amount to wei (18 decimals)
+        const amountInUsdc = parseFloat(amount);
+        if (isNaN(amountInUsdc) || amountInUsdc <= 0) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid amount' },
+            { status: 400 }
+          );
+        }
+
+        // Convert to wei (multiply by 10^18)
+        const amountInWei = (BigInt(Math.floor(amountInUsdc * 1e6)) * BigInt(10 ** 12)).toString();
+
+        // Create document hash from claim info
+        const documentData = `claim:${claimId || 'unknown'}:${claimTitle || 'profit-distribution'}:${Date.now()}`;
+        const documentHash = '0x' + createHash('sha256').update(documentData).digest('hex');
+
+        console.log(`🏦 Distributing profits: ${amountInUsdc} USDC (${amountInWei} wei)`);
+        console.log(`📝 Document hash: ${documentHash}`);
+
+        // Execute distribution
+        const transactionId = await distributeProfits(
+          amountInWei,
+          documentHash,
+          contractAddress || undefined
+        );
+
+        console.log(`✅ Distribution initiated. Transaction ID: ${transactionId}`);
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            txHash: transactionId,
+            amount: amountInUsdc,
+            amountWei: amountInWei,
+            documentHash,
+            claimId,
+          },
+        });
+      }
+
+      default: {
+        return NextResponse.json(
+          { success: false, error: 'Invalid action parameter' },
+          { status: 400 }
+        );
+      }
+    }
+  } catch (error) {
+    console.error('Error executing treasury action:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to execute treasury action',
       },
       { status: 500 }
     );

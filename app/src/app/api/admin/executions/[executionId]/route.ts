@@ -3,18 +3,18 @@ import { pledStorageService } from '@/lib/services/pled-storage-service';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/admin/executions/[id] - Get a specific execution
+// GET /api/admin/executions/[executionId] - Get a specific execution
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ executionId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const execution = await pledStorageService.getExecution(id);
+    const { executionId } = await params;
+    const execution = await pledStorageService.getExecution(executionId);
 
     if (!execution) {
       return NextResponse.json(
-        { error: 'Execution not found', details: `Execution ${id} does not exist` },
+        { error: 'Execution not found', details: `Execution ${executionId} does not exist` },
         { status: 404 }
       );
     }
@@ -29,19 +29,19 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/executions/[id] - Update an execution
+// PUT /api/admin/executions/[executionId] - Update an execution
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ executionId: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { executionId } = await params;
     const body = await request.json();
 
     // Update execution with provided fields
-    await pledStorageService.updateExecution(id, body);
+    await pledStorageService.updateExecution(executionId, body);
 
-    const execution = await pledStorageService.getExecution(id);
+    const execution = await pledStorageService.getExecution(executionId);
     return NextResponse.json({ execution });
   } catch (error: any) {
     console.error('Error updating execution:', error);
@@ -52,14 +52,14 @@ export async function PUT(
   }
 }
 
-// DELETE /api/admin/executions/[id] - Delete an execution
+// DELETE /api/admin/executions/[executionId] - Delete an execution
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ executionId: string }> }
 ) {
   try {
-    const { id } = await params;
-    await pledStorageService.deleteExecution(id);
+    const { executionId } = await params;
+    await pledStorageService.deleteExecution(executionId);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error deleting execution:', error);

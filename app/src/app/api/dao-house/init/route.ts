@@ -3,28 +3,26 @@ import { daoHouseService } from '@/lib/services/dao-house-service';
 
 export async function POST(req: NextRequest) {
   try {
-    const { templateId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    let { templateId } = body;
 
+    // If no templateId provided, try to use a default or create execution without template validation
     if (!templateId) {
-      return NextResponse.json(
-        { success: false, error: 'templateId is required' },
-        { status: 400 }
-      );
+      templateId = 'dao-house-default';
     }
 
-    // Fetch template to validate it exists
-    const templateResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/admin/templates/${templateId}`
-    );
-
-    if (!templateResponse.ok) {
-      return NextResponse.json(
-        { success: false, error: 'Template not found' },
-        { status: 404 }
+    // Try to fetch template, but don't fail if it doesn't exist
+    let templateData = null;
+    try {
+      const templateResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/admin/templates/${templateId}`
       );
+      if (templateResponse.ok) {
+        templateData = await templateResponse.json();
+      }
+    } catch (err) {
+      console.log('Template not found, continuing without it');
     }
-
-    const templateData = await templateResponse.json();
 
     // Fetch Circle wallets
     const walletsResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/circle/wallet`);
@@ -70,7 +68,7 @@ export async function POST(req: NextRequest) {
       },
       {
         id: 'person-3',
-        name: 'Cathie Wood',
+        name: 'Ray Dalio',
         role: 'Shareholder',
         appointedDate: '10 June 2021',
         wallets: walletsWithBalances.slice(2, 3).map((w: any) => ({
@@ -87,20 +85,6 @@ export async function POST(req: NextRequest) {
 
     await daoHouseService.savePeopleDirectory(people);
 
-    // Create Web3 Scion company
-    const company = {
-      id: 'web3-scion',
-      number: '08675309',
-      name: 'WEB3 SCION LIMITED',
-      status: 'Active',
-      registeredOfficeAddress: 'Company Secretariat - The Vhq, Fleming Way, Crawley, West Sussex, United Kingdom, RH10 9DF',
-      companyType: 'Private limited Company',
-      incorporatedOn: '1 September 2020',
-      officers: people,
-    };
-
-    await daoHouseService.saveCompany(company);
-
     // Create execution for corporate filings
     const executionResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/executions`, {
       method: 'POST',
@@ -114,6 +98,21 @@ export async function POST(req: NextRequest) {
     });
 
     const executionData = await executionResponse.json();
+
+    // Create Web3 Scion company with executionId
+    const company = {
+      id: 'web3-scion',
+      number: '08675309',
+      name: 'WEB3 SCION LIMITED',
+      status: 'Active',
+      registeredOfficeAddress: 'Company Secretariat - The Vhq, Fleming Way, Crawley, West Sussex, United Kingdom, RH10 9DF',
+      companyType: 'Private limited Company',
+      incorporatedOn: '1 September 2020',
+      officers: people,
+      executionId: executionData.executionId,
+    };
+
+    await daoHouseService.saveCompany(company);
 
     return NextResponse.json({
       success: true,

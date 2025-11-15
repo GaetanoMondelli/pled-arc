@@ -26,6 +26,7 @@ export interface Company {
   companyType: string;
   incorporatedOn: string;
   officers: Officer[];
+  executionId?: string;
 }
 
 export interface FilingDocument {
@@ -66,17 +67,18 @@ class DAOHouseService {
 
   async listCompanies(): Promise<Company[]> {
     try {
-      const files = await pledStorageService.listFiles(`${this.basePath}/companies/`);
+      // Try to load web3-scion company (hardcoded for now)
+      const knownCompanyIds = ['web3-scion'];
       const companies: Company[] = [];
 
-      for (const file of files) {
-        if (file.name.endsWith('profile.json')) {
-          try {
-            const company = await pledStorageService.downloadJSON(file.name);
+      for (const companyId of knownCompanyIds) {
+        try {
+          const company = await this.getCompany(companyId);
+          if (company) {
             companies.push(company);
-          } catch (err) {
-            console.error(`Error loading company from ${file.name}:`, err);
           }
+        } catch (err) {
+          console.error(`Error loading company ${companyId}:`, err);
         }
       }
 
@@ -139,7 +141,8 @@ class DAOHouseService {
   ): Promise<void> {
     const extension = format === 'json' ? 'json' : format === 'text' ? 'txt' : 'md';
     const baseName = documentName.replace(/\.[^/.]+$/, ''); // Remove extension
-    const path = `${this.basePath}/documents/${companyId}/${executionId}/formats/${baseName}.${extension}`;
+    const formatFolder = format === 'json' ? 'json' : format === 'text' ? 'text' : 'markdown';
+    const path = `${this.basePath}/documents/${companyId}/${executionId}/${formatFolder}/${baseName}.${extension}`;
 
     if (format === 'json') {
       await pledStorageService.uploadJSON(path, JSON.parse(content));
@@ -182,27 +185,48 @@ class DAOHouseService {
 
   async listFilings(companyId: string): Promise<FilingDocument[]> {
     try {
-      const prefix = `${this.basePath}/documents/${companyId}/`;
-      const files = await pledStorageService.listFiles(prefix);
-      const filings: FilingDocument[] = [];
+      const bucket = require('@/lib/firebase-storage').bucket;
+      if (!bucket) {
+        console.warn('Firebase bucket not available');
+        return [];
+      }
 
-      for (const file of files) {
-        if (file.name.endsWith('metadata.json')) {
-          try {
-            const filing = await pledStorageService.downloadJSON(file.name);
-            filings.push(filing);
-          } catch (err) {
-            console.error(`Error loading filing from ${file.name}:`, err);
-          }
+      // List all files in the company's documents folder
+      const prefix = `${this.basePath}/documents/${companyId}/`;
+      const [files] = await bucket.getFiles({ prefix });
+
+      // Find all metadata files
+      const metadataFiles = files.filter((f: any) => f.name.endsWith('/metadata.json'));
+
+      const filings: FilingDocument[] = [];
+      for (const file of metadataFiles) {
+        try {
+          const [contents] = await file.download();
+          const metadata = JSON.parse(contents.toString('utf8'));
+          filings.push(metadata);
+        } catch (err) {
+          console.warn(`Failed to read metadata from ${file.name}:`, err);
         }
       }
 
+      // Sort by filed date (newest first)
       return filings.sort((a, b) =>
         new Date(b.filedDate).getTime() - new Date(a.filedDate).getTime()
       );
     } catch (error) {
       console.error('Error listing filings:', error);
       return [];
+    }
+  }
+
+  async deleteFilingMetadata(companyId: string, executionId: string, filingId: string): Promise<void> {
+    try {
+      const path = `${this.basePath}/documents/${companyId}/${executionId}/metadata.json`;
+      await pledStorageService.deleteFile(path);
+      console.log(`✅ Deleted filing metadata at ${path}`);
+    } catch (error) {
+      console.error('Error deleting filing metadata:', error);
+      throw error;
     }
   }
 }

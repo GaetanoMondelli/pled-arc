@@ -61,7 +61,7 @@ export function OfficersTab({ companyId }: OfficersTabProps) {
           appointedDate: '15 March 2019'
         },
         '0x3c4b268b88ca7374e2f597b6627011225263d8b4': {
-          name: 'Cathie Wood',
+          name: 'Ray Dalio',
           role: 'Shareholder',
           appointedDate: '10 June 2021'
         },

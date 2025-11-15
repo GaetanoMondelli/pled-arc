@@ -48,13 +48,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch template to get metadata
-    const template = await pledStorageService.getTemplate(templateId);
-    if (!template) {
-      return NextResponse.json(
-        { error: 'Template not found' },
-        { status: 404 }
-      );
+    // Fetch template to get metadata (optional - continue if not found)
+    let template = null;
+    try {
+      template = await pledStorageService.getTemplate(templateId);
+    } catch (error) {
+      console.log(`⚠️ Template ${templateId} not found, creating execution anyway`);
     }
 
     // Debug: Log what we're receiving
@@ -67,8 +66,8 @@ export async function POST(request: NextRequest) {
     // Create execution with external events
     const executionId = await pledStorageService.createExecution({
       templateId,
-      templateName: template.name,
-      scenarioName: template.scenario?.name || name,
+      templateName: template?.name || name,
+      scenarioName: template?.scenario?.name || name,
       name,
       description,
       externalEvents,

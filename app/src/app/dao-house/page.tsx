@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { OfficersTab } from '@/components/dao-house/OfficersTab';
+import { FilingHistoryTab } from '@/components/dao-house/FilingHistoryTab';
+import { TreasuryTab } from '@/components/dao-house/TreasuryTab';
 
 export interface Officer {
   id: string;
@@ -31,6 +33,7 @@ export interface Company {
   companyType: string;
   incorporatedOn: string;
   officers: Officer[];
+  executionId?: string;
 }
 
 export default function DAOHousePage() {
@@ -38,7 +41,7 @@ export default function DAOHousePage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'filing' | 'people' | 'charges'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'filing' | 'people' | 'treasury' | 'charges'>('overview');
 
   useEffect(() => {
     loadCompanies();
@@ -76,13 +79,21 @@ export default function DAOHousePage() {
   const initialize = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/dao-house/init', { method: 'POST' });
+      const response = await fetch('/api/dao-house/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: 'dao-house-template' })
+      });
       const result = await response.json();
       if (result.success) {
         await loadCompanies();
+      } else {
+        console.error('Initialization error:', result.error);
+        alert(`Failed to initialize: ${result.error}`);
       }
     } catch (error) {
       console.error('Error initializing:', error);
+      alert('Failed to initialize DAO House');
     } finally {
       setLoading(false);
     }
@@ -90,10 +101,31 @@ export default function DAOHousePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Blue banner */}
-      <div className="bg-[#1d70b8] text-white py-2">
+      {/* Header - Blue with Logo */}
+      <header className="bg-[#1d70b8] text-white">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center gap-8">
+            <Image
+              src="/daohouse.png"
+              alt="DAO House"
+              width={280}
+              height={280}
+              className="object-contain"
+            />
+            <div>
+              <h1 className="text-4xl font-bold">DAO House</h1>
+              <p className="text-lg text-gray-100 mt-2">
+                Decentralized Autonomous Organization Registry
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Black navigation bar */}
+      <div className="bg-black text-white py-3">
         <div className="container mx-auto px-4">
-          <nav className="flex gap-4 text-sm">
+          <nav className="flex gap-6 text-sm font-normal">
             <Link href="/" className="hover:underline">
               Home
             </Link>
@@ -106,27 +138,6 @@ export default function DAOHousePage() {
           </nav>
         </div>
       </div>
-
-      {/* Header */}
-      <header className="bg-black text-white">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center gap-6">
-            <Image
-              src="/daohouse.png"
-              alt="DAO House"
-              width={120}
-              height={120}
-              className="object-contain"
-            />
-            <div>
-              <h1 className="text-4xl font-bold">DAO House</h1>
-              <p className="text-lg text-gray-300">
-                Decentralized Autonomous Organization Registry
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
 
       {/* Main content */}
       <div className="container mx-auto px-4 py-8">
@@ -216,6 +227,14 @@ export default function DAOHousePage() {
                     People
                   </button>
                   <button
+                    onClick={() => setActiveTab('treasury')}
+                    className={`px-6 py-3 hover:bg-gray-100 ${
+                      activeTab === 'treasury' ? 'border-b-4 border-gray-900 font-bold' : ''
+                    }`}
+                  >
+                    Treasury
+                  </button>
+                  <button
                     onClick={() => setActiveTab('charges')}
                     className={`px-6 py-3 hover:bg-gray-100 ${
                       activeTab === 'charges' ? 'border-b-4 border-gray-900 font-bold' : ''
@@ -249,47 +268,28 @@ export default function DAOHousePage() {
                       <p className="text-gray-800 font-bold">{selectedCompany.incorporatedOn}</p>
                     </div>
                   </div>
-
-                  <div>
-                    <h3 className="font-bold mb-4">Officers ({selectedCompany.officers.length})</h3>
-                    <div className="space-y-4">
-                      {selectedCompany.officers.map((officer) => (
-                        <div key={officer.id} className="border-l-4 border-gray-400 pl-4">
-                          <p className="font-bold">{officer.name}</p>
-                          <p className="text-sm text-gray-600">{officer.role}</p>
-                          <p className="text-sm text-gray-600">
-                            Appointed on {officer.appointedDate}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Allocation: {officer.allocationPercentage}%
-                          </p>
-                          <div className="mt-2 space-y-1">
-                            {officer.wallets.map((wallet, idx) => (
-                              <div
-                                key={idx}
-                                className="text-xs font-mono bg-gray-100 px-2 py-1 rounded"
-                              >
-                                {wallet.blockchain}: {wallet.address.substring(0, 10)}...
-                                {wallet.address.substring(wallet.address.length - 8)} ({wallet.balance}{' '}
-                                {wallet.token})
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {activeTab === 'filing' && (
+              {activeTab === 'filing' && selectedCompany.executionId && (
+                <FilingHistoryTab
+                  companyId={selectedCompany.id}
+                  executionId={selectedCompany.executionId}
+                />
+              )}
+
+              {activeTab === 'filing' && !selectedCompany.executionId && (
                 <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <p className="text-gray-600">Filing history coming soon...</p>
+                  <p className="text-gray-600">No execution ID found. Please re-initialize.</p>
                 </div>
               )}
 
               {activeTab === 'people' && (
                 <OfficersTab companyId={selectedCompany.id} />
+              )}
+
+              {activeTab === 'treasury' && (
+                <TreasuryTab companyId={selectedCompany.id} />
               )}
 
               {activeTab === 'charges' && (
