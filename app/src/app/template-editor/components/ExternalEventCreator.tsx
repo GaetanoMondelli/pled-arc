@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, AlertCircle, Wand2 } from 'lucide-react';
+import { Plus, AlertCircle, Wand2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ExternalEventCreatorProps {
@@ -28,6 +28,7 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
     id: '',
     type: 'user_action',
     source: 'web_app',
+    timestamp: Date.now(),
     data: JSON.stringify({
       action: 'submit',
       documentId: 'DOC-123',
@@ -35,6 +36,8 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
     }, null, 2),
     targetDataSourceId: ''
   });
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const { toast } = useToast();
 
@@ -76,6 +79,54 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
     }
   }, [engine, isOpen]);
 
+  // AI-powered event generation
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Prompt Required',
+        description: 'Please enter a description of the event data you want to generate'
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/ai/generate-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt })
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const eventId = `evt_${Math.random().toString(36).substr(2, 6)}`;
+        setEventData(prev => ({
+          ...prev,
+          id: eventId,
+          timestamp: Date.now(),
+          data: JSON.stringify(result.data, null, 2)
+        }));
+
+        toast({
+          title: 'Event Generated',
+          description: 'AI generated event data from your description'
+        });
+      } else {
+        throw new Error(result.error || 'Failed to generate event');
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Generation Failed',
+        description: error.message || 'Failed to generate event data'
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Magic wand auto-populate - generate sample events
   const handleAutoPopulate = () => {
     // Generate a sample number event for quick testing
@@ -87,6 +138,7 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
       id: eventId,
       type: 'number_input',
       source: 'external_input',
+      timestamp: Date.now(),
       data: JSON.stringify({ value: randomValue }, null, 2)
     }));
 
@@ -127,14 +179,10 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
     }
 
     try {
-      // Create external event
-      // Use real-world time to preserve actual timing differences between events
-      // This ensures events received 10 seconds apart in real world are also 10 seconds apart in simulation
-      const realWorldTimestamp = Date.now();
-
+      // Create external event with user-specified timestamp
       const externalEvent = {
         id: eventData.id,
-        timestamp: realWorldTimestamp,
+        timestamp: eventData.timestamp,
         type: eventData.type,
         source: eventData.source,
         data: JSON.parse(eventData.data),
@@ -159,9 +207,11 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
         id: '',
         type: 'user_action',
         source: 'user_interface',
+        timestamp: Date.now(),
         data: '{}',
         targetDataSourceId: ''
       });
+      setAiPrompt('');
       setErrors([]);
       setIsOpen(false);
 
@@ -225,6 +275,20 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="timestamp">Timestamp (ms)</Label>
+              <Input
+                id="timestamp"
+                type="number"
+                value={eventData.timestamp}
+                onChange={(e) => setEventData(prev => ({ ...prev, timestamp: parseInt(e.target.value) || Date.now() }))}
+                placeholder="Unix timestamp in milliseconds"
+              />
+              <p className="text-xs text-gray-500">
+                Current time: {new Date(eventData.timestamp).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="target-datasource">Target Data Source</Label>
                 {eventData.targetDataSourceId && (
@@ -251,6 +315,42 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
                   <option key={ds.id} value={ds.id}>{ds.name}</option>
                   ))}
                 </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-prompt">AI Event Generator</Label>
+              <div className="flex gap-2">
+                <Textarea
+                  id="ai-prompt"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Describe the event data you want to generate, e.g., 'OpenAI chat completion response with message, tokens, model fields' or 'Weather API response with temperature, humidity, location'"
+                  rows={2}
+                  className="flex-1 text-sm"
+                />
+                <Button
+                  type="button"
+                  onClick={handleAIGenerate}
+                  disabled={isGenerating || !aiPrompt.trim()}
+                  className="h-auto px-4"
+                  variant="secondary"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Use AI to generate realistic event data from natural language description
+              </p>
             </div>
 
             <div className="space-y-2">
