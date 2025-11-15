@@ -1,0 +1,31 @@
+# Ignore virtual environment
+venv/
+.venv/
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore documentation
+README.md
+DEPLOYMENT.md
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore deployment scripts (not needed in container)
+deploy.sh
+
+# Ignore test files
+test_*.py
+*_test.py
