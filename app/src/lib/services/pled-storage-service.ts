@@ -82,6 +82,13 @@ export class PledStorageService {
     console.log('PledStorageService initialized - using Firebase Storage');
   }
 
+  private ensureBucket() {
+    if (!bucket) {
+      throw new Error('Firebase storage bucket is not initialized. Check FIREBASE_SERVICE_ACCOUNT and FIREBASE_STORAGE_BUCKET environment variables.');
+    }
+    return bucket;
+  }
+
   // ============================================================================
   // Manifest Management
   // ============================================================================
@@ -97,7 +104,7 @@ export class PledStorageService {
       console.log('📥 Fetching manifest from Firebase Storage...');
       const startTime = Date.now();
 
-      const file = bucket.file(this.MANIFEST_FILE);
+      const file = this.ensureBucket().file(this.MANIFEST_FILE);
       const [exists] = await file.exists();
 
       if (!exists) {
@@ -133,7 +140,7 @@ export class PledStorageService {
 
   private async saveManifest(manifest: PledManifest): Promise<void> {
     try {
-      const file = bucket.file(this.MANIFEST_FILE);
+      const file = this.ensureBucket().file(this.MANIFEST_FILE);
       await file.save(JSON.stringify(manifest, null, 2), {
         contentType: 'application/json',
         metadata: {
@@ -173,7 +180,7 @@ export class PledStorageService {
 
       // Save template file
       const templatePath = `${this.TEMPLATES_FOLDER}/${id}.json`;
-      const templateFile = bucket.file(templatePath);
+      const templateFile = this.ensureBucket().file(templatePath);
       await templateFile.save(JSON.stringify(template, null, 2), {
         contentType: 'application/json',
         metadata: {
@@ -209,7 +216,7 @@ export class PledStorageService {
   async getTemplate(templateId: string): Promise<PledTemplate | null> {
     try {
       const templatePath = `${this.TEMPLATES_FOLDER}/${templateId}.json`;
-      const templateFile = bucket.file(templatePath);
+      const templateFile = this.ensureBucket().file(templatePath);
 
       const [exists] = await templateFile.exists();
       if (!exists) {
@@ -293,7 +300,7 @@ export class PledStorageService {
 
       // Save updated template
       const templatePath = `${this.TEMPLATES_FOLDER}/${templateId}.json`;
-      const templateFile = bucket.file(templatePath);
+      const templateFile = this.ensureBucket().file(templatePath);
       console.log('🗄️ Saving to Firebase Storage at:', templatePath);
       await templateFile.save(JSON.stringify(updatedTemplate, null, 2), {
         contentType: 'application/json',
@@ -334,7 +341,7 @@ export class PledStorageService {
     try {
       // Delete template file
       const templatePath = `${this.TEMPLATES_FOLDER}/${templateId}.json`;
-      const templateFile = bucket.file(templatePath);
+      const templateFile = this.ensureBucket().file(templatePath);
 
       const [exists] = await templateFile.exists();
       if (exists) {
@@ -372,7 +379,7 @@ export class PledStorageService {
 
       // Save execution file
       const executionPath = `${this.EXECUTIONS_FOLDER}/${id}.json`;
-      const executionFile = bucket.file(executionPath);
+      const executionFile = this.ensureBucket().file(executionPath);
       await executionFile.save(JSON.stringify(execution, null, 2), {
         contentType: 'application/json',
         metadata: {
@@ -408,7 +415,7 @@ export class PledStorageService {
   async getExecution(executionId: string): Promise<PledExecution | null> {
     try {
       const executionPath = `${this.EXECUTIONS_FOLDER}/${executionId}.json`;
-      const executionFile = bucket.file(executionPath);
+      const executionFile = this.ensureBucket().file(executionPath);
 
       const [exists] = await executionFile.exists();
       if (!exists) {
@@ -515,7 +522,7 @@ export class PledStorageService {
 
       // Save updated execution
       const executionPath = `${this.EXECUTIONS_FOLDER}/${executionId}.json`;
-      const executionFile = bucket.file(executionPath);
+      const executionFile = this.ensureBucket().file(executionPath);
       await executionFile.save(JSON.stringify(updatedExecution, null, 2), {
         contentType: 'application/json',
         metadata: {
@@ -560,7 +567,7 @@ export class PledStorageService {
     try {
       // Delete execution file
       const executionPath = `${this.EXECUTIONS_FOLDER}/${executionId}.json`;
-      const executionFile = bucket.file(executionPath);
+      const executionFile = this.ensureBucket().file(executionPath);
 
       const [exists] = await executionFile.exists();
       if (exists) {
@@ -592,7 +599,7 @@ export class PledStorageService {
     metadata?: Record<string, any>;
   }): Promise<void> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       await file.save(buffer, {
         contentType: options?.contentType || 'application/octet-stream',
         metadata: options?.metadata || {}
@@ -609,7 +616,7 @@ export class PledStorageService {
    */
   async uploadJSON(path: string, data: any): Promise<void> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       await file.save(JSON.stringify(data, null, 2), {
         contentType: 'application/json',
         metadata: {
@@ -628,7 +635,7 @@ export class PledStorageService {
    */
   async uploadText(path: string, text: string): Promise<void> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       await file.save(text, {
         contentType: 'text/plain',
         metadata: {
@@ -647,7 +654,7 @@ export class PledStorageService {
    */
   async downloadBuffer(path: string): Promise<Buffer | null> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       const [exists] = await file.exists();
 
       if (!exists) {
@@ -669,7 +676,7 @@ export class PledStorageService {
    */
   async downloadJSON(path: string): Promise<any | null> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       const [exists] = await file.exists();
 
       if (!exists) {
@@ -692,7 +699,7 @@ export class PledStorageService {
    */
   async downloadText(path: string): Promise<string | null> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       const [exists] = await file.exists();
 
       if (!exists) {
@@ -715,7 +722,7 @@ export class PledStorageService {
    */
   async deleteFile(path: string): Promise<void> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       const [exists] = await file.exists();
 
       if (exists) {
@@ -735,7 +742,7 @@ export class PledStorageService {
    */
   async fileExists(path: string): Promise<boolean> {
     try {
-      const file = bucket.file(path);
+      const file = this.ensureBucket().file(path);
       const [exists] = await file.exists();
       return exists;
     } catch (error) {
@@ -813,7 +820,7 @@ export class PledStorageService {
   async checkConnection(): Promise<boolean> {
     try {
       // Try to access the storage bucket
-      const [files] = await bucket.getFiles({
+      const [files] = await this.ensureBucket().getFiles({
         prefix: this.PLED_FOLDER,
         maxResults: 1
       });
@@ -827,7 +834,7 @@ export class PledStorageService {
   async getStorageInfo(): Promise<any> {
     try {
       const manifest = await this.getManifest();
-      const [files] = await bucket.getFiles({
+      const [files] = await this.ensureBucket().getFiles({
         prefix: this.PLED_FOLDER
       });
 

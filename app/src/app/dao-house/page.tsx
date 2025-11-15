@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { OfficersTab } from '@/components/dao-house/OfficersTab';
 
 export interface Officer {
   id: string;
@@ -37,6 +38,7 @@ export default function DAOHousePage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'filing' | 'people' | 'charges'>('overview');
 
   useEffect(() => {
     loadCompanies();
@@ -88,27 +90,6 @@ export default function DAOHousePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="bg-black text-white">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Image
-              src="/daohouse.png"
-              alt="DAO House"
-              width={60}
-              height={60}
-              className="object-contain"
-            />
-            <div>
-              <h1 className="text-2xl font-bold">DAO House</h1>
-              <p className="text-sm text-gray-300">
-                Decentralized Autonomous Organization Registry
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Blue banner */}
       <div className="bg-[#1d70b8] text-white py-2">
         <div className="container mx-auto px-4">
@@ -125,6 +106,27 @@ export default function DAOHousePage() {
           </nav>
         </div>
       </div>
+
+      {/* Header */}
+      <header className="bg-black text-white">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-6">
+            <Image
+              src="/daohouse.png"
+              alt="DAO House"
+              width={120}
+              height={120}
+              className="object-contain"
+            />
+            <div>
+              <h1 className="text-4xl font-bold">DAO House</h1>
+              <p className="text-lg text-gray-300">
+                Decentralized Autonomous Organization Registry
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {/* Main content */}
       <div className="container mx-auto px-4 py-8">
@@ -189,71 +191,112 @@ export default function DAOHousePage() {
               {/* Tabs */}
               <div className="border-b border-gray-300 mb-6">
                 <nav className="flex gap-1">
-                  <button className="px-6 py-3 font-bold border-b-4 border-gray-900 hover:bg-gray-100">
+                  <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`px-6 py-3 font-bold hover:bg-gray-100 ${
+                      activeTab === 'overview' ? 'border-b-4 border-gray-900' : ''
+                    }`}
+                  >
                     Overview
                   </button>
-                  <button className="px-6 py-3 hover:bg-gray-100">
+                  <button
+                    onClick={() => setActiveTab('filing')}
+                    className={`px-6 py-3 hover:bg-gray-100 ${
+                      activeTab === 'filing' ? 'border-b-4 border-gray-900 font-bold' : ''
+                    }`}
+                  >
                     Filing history
                   </button>
-                  <button className="px-6 py-3 hover:bg-gray-100">People</button>
-                  <button className="px-6 py-3 hover:bg-gray-100">Charges</button>
-                  <button className="px-6 py-3 hover:bg-gray-100">More</button>
+                  <button
+                    onClick={() => setActiveTab('people')}
+                    className={`px-6 py-3 hover:bg-gray-100 ${
+                      activeTab === 'people' ? 'border-b-4 border-gray-900 font-bold' : ''
+                    }`}
+                  >
+                    People
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('charges')}
+                    className={`px-6 py-3 hover:bg-gray-100 ${
+                      activeTab === 'charges' ? 'border-b-4 border-gray-900 font-bold' : ''
+                    }`}
+                  >
+                    Charges
+                  </button>
                 </nav>
               </div>
 
-              {/* Company details */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-bold mb-2">Registered office address</h3>
-                  <p className="text-gray-800">{selectedCompany.registeredOfficeAddress}</p>
-                </div>
-
-                <div>
-                  <h3 className="font-bold mb-2">Company status</h3>
-                  <p className="text-gray-800 font-bold">{selectedCompany.status}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
+              {/* Tab content */}
+              {activeTab === 'overview' && (
+                <div className="space-y-6">
                   <div>
-                    <h3 className="font-bold mb-2">Company type</h3>
-                    <p className="text-gray-800 font-bold">{selectedCompany.companyType}</p>
+                    <h3 className="font-bold mb-2">Registered office address</h3>
+                    <p className="text-gray-800">{selectedCompany.registeredOfficeAddress}</p>
                   </div>
-                  <div>
-                    <h3 className="font-bold mb-2">Incorporated on</h3>
-                    <p className="text-gray-800 font-bold">{selectedCompany.incorporatedOn}</p>
-                  </div>
-                </div>
 
-                <div>
-                  <h3 className="font-bold mb-4">Officers ({selectedCompany.officers.length})</h3>
-                  <div className="space-y-4">
-                    {selectedCompany.officers.map((officer) => (
-                      <div key={officer.id} className="border-l-4 border-gray-400 pl-4">
-                        <p className="font-bold">{officer.name}</p>
-                        <p className="text-sm text-gray-600">{officer.role}</p>
-                        <p className="text-sm text-gray-600">
-                          Appointed on {officer.appointedDate}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Allocation: {officer.allocationPercentage}%
-                        </p>
-                        <div className="mt-2 space-y-1">
-                          {officer.wallets.map((wallet, idx) => (
-                            <div
-                              key={idx}
-                              className="text-xs font-mono bg-gray-100 px-2 py-1 rounded"
-                            >
-                              {wallet.blockchain}: {wallet.address.substring(0, 10)}...
-                              {wallet.address.substring(wallet.address.length - 8)} ({wallet.balance}{' '}
-                              {wallet.token})
-                            </div>
-                          ))}
+                  <div>
+                    <h3 className="font-bold mb-2">Company status</h3>
+                    <p className="text-gray-800 font-bold">{selectedCompany.status}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="font-bold mb-2">Company type</h3>
+                      <p className="text-gray-800 font-bold">{selectedCompany.companyType}</p>
+                    </div>
+                    <div>
+                      <h3 className="font-bold mb-2">Incorporated on</h3>
+                      <p className="text-gray-800 font-bold">{selectedCompany.incorporatedOn}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold mb-4">Officers ({selectedCompany.officers.length})</h3>
+                    <div className="space-y-4">
+                      {selectedCompany.officers.map((officer) => (
+                        <div key={officer.id} className="border-l-4 border-gray-400 pl-4">
+                          <p className="font-bold">{officer.name}</p>
+                          <p className="text-sm text-gray-600">{officer.role}</p>
+                          <p className="text-sm text-gray-600">
+                            Appointed on {officer.appointedDate}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Allocation: {officer.allocationPercentage}%
+                          </p>
+                          <div className="mt-2 space-y-1">
+                            {officer.wallets.map((wallet, idx) => (
+                              <div
+                                key={idx}
+                                className="text-xs font-mono bg-gray-100 px-2 py-1 rounded"
+                              >
+                                {wallet.blockchain}: {wallet.address.substring(0, 10)}...
+                                {wallet.address.substring(wallet.address.length - 8)} ({wallet.balance}{' '}
+                                {wallet.token})
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {activeTab === 'filing' && (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">Filing history coming soon...</p>
+                </div>
+              )}
+
+              {activeTab === 'people' && (
+                <OfficersTab companyId={selectedCompany.id} />
+              )}
+
+              {activeTab === 'charges' && (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">No charges registered</p>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
