@@ -1,0 +1,263 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+
+export interface Officer {
+  id: string;
+  name: string;
+  role: string;
+  appointedDate: string;
+  wallets: WalletInfo[];
+  allocationPercentage: number;
+}
+
+export interface WalletInfo {
+  walletId: string;
+  address: string;
+  blockchain: string;
+  balance: string;
+  token: string;
+}
+
+export interface Company {
+  id: string;
+  number: string;
+  name: string;
+  status: string;
+  registeredOfficeAddress: string;
+  companyType: string;
+  incorporatedOn: string;
+  officers: Officer[];
+}
+
+export default function DAOHousePage() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+
+  useEffect(() => {
+    loadCompanies();
+  }, []);
+
+  const loadCompanies = async () => {
+    try {
+      const response = await fetch('/api/dao-house/companies');
+      const result = await response.json();
+      if (result.success) {
+        setCompanies(result.data);
+        if (result.data.length > 0) {
+          setSelectedCompany(result.data[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading companies:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const found = companies.find(
+      (c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.number.includes(searchQuery)
+    );
+    if (found) {
+      setSelectedCompany(found);
+    }
+  };
+
+  const initialize = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/dao-house/init', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        await loadCompanies();
+      }
+    } catch (error) {
+      console.error('Error initializing:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-white">
+      {/* Header */}
+      <header className="bg-black text-white">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/daohouse.png"
+              alt="DAO House"
+              width={60}
+              height={60}
+              className="object-contain"
+            />
+            <div>
+              <h1 className="text-2xl font-bold">DAO House</h1>
+              <p className="text-sm text-gray-300">
+                Decentralized Autonomous Organization Registry
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Blue banner */}
+      <div className="bg-[#1d70b8] text-white py-2">
+        <div className="container mx-auto px-4">
+          <nav className="flex gap-4 text-sm">
+            <Link href="/" className="hover:underline">
+              Home
+            </Link>
+            <Link href="/registry" className="hover:underline">
+              Claims Registry
+            </Link>
+            <Link href="/template-editor" className="hover:underline">
+              Template Editor
+            </Link>
+          </nav>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-bold mb-2">Find and update company information</h2>
+          <p className="text-sm text-gray-600 mb-6">
+            DAO House does not verify the accuracy of the information filed
+          </p>
+
+          {/* Search bar */}
+          <form onSubmit={handleSearch} className="mb-8">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search for a company or officer"
+                className="flex-1 px-4 py-3 border-2 border-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              />
+              <button
+                type="submit"
+                className="px-6 py-3 bg-[#00703c] hover:bg-[#005a30] text-white font-bold"
+              >
+                Search
+              </button>
+            </div>
+          </form>
+
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="loading loading-spinner loading-lg"></div>
+              <p className="mt-4 text-gray-600">Loading companies...</p>
+            </div>
+          ) : companies.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 mb-4">No companies found.</p>
+              <button
+                onClick={initialize}
+                className="px-6 py-3 bg-[#1d70b8] hover:bg-[#1d4d7d] text-white font-bold"
+              >
+                Initialize DAO House
+              </button>
+            </div>
+          ) : selectedCompany ? (
+            <div>
+              {/* Company header */}
+              <h1 className="text-4xl font-bold mb-4">{selectedCompany.name}</h1>
+              <p className="text-lg mb-2">
+                Company number{' '}
+                <span className="font-bold">{selectedCompany.number}</span>
+              </p>
+
+              <div className="flex gap-4 mb-8">
+                <button className="px-4 py-2 bg-[#00703c] hover:bg-[#005a30] text-white font-bold text-sm">
+                  Follow this company
+                </button>
+                <button className="px-4 py-2 bg-[#1d70b8] hover:bg-[#1d4d7d] text-white font-bold text-sm">
+                  File for this company
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="border-b border-gray-300 mb-6">
+                <nav className="flex gap-1">
+                  <button className="px-6 py-3 font-bold border-b-4 border-gray-900 hover:bg-gray-100">
+                    Overview
+                  </button>
+                  <button className="px-6 py-3 hover:bg-gray-100">
+                    Filing history
+                  </button>
+                  <button className="px-6 py-3 hover:bg-gray-100">People</button>
+                  <button className="px-6 py-3 hover:bg-gray-100">Charges</button>
+                  <button className="px-6 py-3 hover:bg-gray-100">More</button>
+                </nav>
+              </div>
+
+              {/* Company details */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bold mb-2">Registered office address</h3>
+                  <p className="text-gray-800">{selectedCompany.registeredOfficeAddress}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-bold mb-2">Company status</h3>
+                  <p className="text-gray-800 font-bold">{selectedCompany.status}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-bold mb-2">Company type</h3>
+                    <p className="text-gray-800 font-bold">{selectedCompany.companyType}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-bold mb-2">Incorporated on</h3>
+                    <p className="text-gray-800 font-bold">{selectedCompany.incorporatedOn}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-bold mb-4">Officers ({selectedCompany.officers.length})</h3>
+                  <div className="space-y-4">
+                    {selectedCompany.officers.map((officer) => (
+                      <div key={officer.id} className="border-l-4 border-gray-400 pl-4">
+                        <p className="font-bold">{officer.name}</p>
+                        <p className="text-sm text-gray-600">{officer.role}</p>
+                        <p className="text-sm text-gray-600">
+                          Appointed on {officer.appointedDate}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Allocation: {officer.allocationPercentage}%
+                        </p>
+                        <div className="mt-2 space-y-1">
+                          {officer.wallets.map((wallet, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs font-mono bg-gray-100 px-2 py-1 rounded"
+                            >
+                              {wallet.blockchain}: {wallet.address.substring(0, 10)}...
+                              {wallet.address.substring(wallet.address.length - 8)} ({wallet.balance}{' '}
+                              {wallet.token})
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
