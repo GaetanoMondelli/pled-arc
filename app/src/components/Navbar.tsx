@@ -11,7 +11,7 @@ export function Navbar() {
       <div className="flex flex-wrap justify-between items-center">
         <div className="flex items-center">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/wlogo-white.png" alt="PLED" className="w-6 h-6 object-contain" />
+            <img src="/wlogo.png" alt="PLED" className="w-6 h-6 object-contain" />
             <span className="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">PLED</span>
           </Link>
         </div>
