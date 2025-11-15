@@ -172,48 +172,37 @@ function ExpandableActivityRecord({ log, originalIndex, getNodeDisplayName, getA
   return (
     <div className="border-b border-gray-200 last:border-b-0">
       <div className="px-3 py-2 text-xs hover:bg-muted/30">
-        <div className="grid grid-cols-[60px_120px_80px_150px_140px_100px_1fr_30px] gap-2 items-start">
-          <div className="font-mono text-muted-foreground text-xs truncate" title={`Sequence: ${sequenceDisplay}`}>
+        <div className="flex gap-3 items-start">
+          <div className="w-12 flex-shrink-0 font-mono text-muted-foreground text-xs truncate" title={`Sequence: ${sequenceDisplay}`}>
             {sequenceDisplay}
           </div>
-          <div className="font-mono text-muted-foreground text-xs truncate" title={`Timestamp: ${formatTimestamp(log.timestamp)}`}>
-            {formatTimestamp(log.timestamp)}
-          </div>
-          <div className="font-medium truncate text-xs" title={getNodeDisplayName(log.nodeId)}>
+          <div className="w-48 flex-shrink-0 font-medium truncate text-xs" title={getNodeDisplayName(log.nodeId)}>
             {getNodeDisplayName(log.nodeId)}
           </div>
-          <div className="text-xs truncate">
+          <div className="w-32 flex-shrink-0 text-xs truncate">
             {correlationId && correlationId !== '-' ? (
               <button
                 className="font-mono text-blue-600 hover:text-blue-800 hover:underline cursor-pointer bg-blue-50 hover:bg-blue-100 px-1 py-0.5 rounded text-xs transition-colors"
                 title={`Correlation ID: ${correlationId} (click for lineage)`}
                 onClick={() => handleCidClick(correlationId)}
               >
-                {correlationId.slice(0, 8)}
+                {correlationId}
               </button>
             ) : (
               <span className="font-mono text-muted-foreground">-</span>
             )}
           </div>
-          <div className="truncate">
-            <span
-              className={`px-1.5 py-0.5 rounded text-xs font-medium ${getActionColor(log.action)} block truncate no-underline`}
-              title={log.action}
-            >
-              {log.action}
-            </span>
-          </div>
-          <div className="text-right truncate">
-            {log.value !== undefined ? (
+          <div className="w-24 flex-shrink-0 text-right truncate">
+            {log.value !== undefined && log.value !== null ? (
               typeof log.value === 'object' ?
                 <ExpandableValue value={JSON.stringify(log.value, null, 2)} maxLength={12} /> :
-                <ExpandableValue value={String(log.value)} maxLength={12} />
-            ) : <span className="font-mono text-xs">-</span>}
+                <span className="font-mono text-xs">{String(log.value)}</span>
+            ) : <span className="font-mono text-muted-foreground text-xs">-</span>}
           </div>
-          <div className="text-muted-foreground text-xs truncate" title={log.details || "-"}>
-            {renderTokenLinks(log.details || "-")}
+          <div className="flex-1 min-w-0 text-muted-foreground text-xs">
+            <ExpandableValue value={log.details || "-"} maxLength={50} />
           </div>
-          <div className="flex justify-center">
+          <div className="w-8 flex-shrink-0 flex justify-center">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-gray-700"
@@ -517,12 +506,10 @@ const GlobalActivityTable: React.FC<{
     <div className="border rounded-md">
       <div className="bg-muted/50 px-3 py-2 text-xs font-medium border-b">
         <div className="flex gap-3">
-          <div className="w-10 flex-shrink-0">Seq</div>
-          <div className="w-16 flex-shrink-0">Time</div>
-          <div className="w-16 flex-shrink-0">CID</div>
-          <div className="w-28 flex-shrink-0">Node</div>
-          <div className="w-36 flex-shrink-0">Action</div>
-          <div className="w-28 flex-shrink-0">Value</div>
+          <div className="w-12 flex-shrink-0">Seq</div>
+          <div className="w-48 flex-shrink-0">Node</div>
+          <div className="w-32 flex-shrink-0">Lineage</div>
+          <div className="w-24 flex-shrink-0">Value</div>
           <div className="flex-1 min-w-0">Details</div>
           <div className="w-8 flex-shrink-0"></div>
         </div>

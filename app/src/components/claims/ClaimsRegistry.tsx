@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity } from "lucide-react";
+import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity, Coins } from "lucide-react";
 import { createUserClaimsService } from "@/lib/services/claimsService";
 import { useSession } from "next-auth/react";
 import {
@@ -35,6 +35,7 @@ import { SimpleClaimCreator } from "./SimpleClaimCreator";
 import { CompactSinkViewer } from "./CompactSinkViewer";
 import { JSONViewerModal } from "./JSONViewerModal";
 import { ClaimEditModal } from "./ClaimEditModal";
+import { TokenizeClaimModal } from "./TokenizeClaimModal";
 import { templateService } from "@/lib/template-service";
 import { engineAPIService } from "@/lib/engine-api-service";
 
@@ -57,6 +58,8 @@ interface ClaimsRegistryState {
   jsonViewerClaim: Claim | null;
   showEditModal: boolean;
   editClaim: Claim | null;
+  showTokenizeModal: boolean;
+  tokenizeClaim: Claim | null;
   aggregatedValues: Record<string, any>; // Cache for aggregated values by claim ID
   loadingAggregations: Record<string, boolean>; // Track loading state per claim
 }
@@ -83,6 +86,8 @@ export function ClaimsRegistry() {
     jsonViewerClaim: null,
     showEditModal: false,
     editClaim: null,
+    showTokenizeModal: false,
+    tokenizeClaim: null,
     aggregatedValues: {},
     loadingAggregations: {},
   });
@@ -253,6 +258,31 @@ export function ClaimsRegistry() {
       showEditModal: true,
       editClaim: claim,
     }));
+  };
+
+  const handleTokenizeClaim = (claim: Claim) => {
+    setState(prev => ({
+      ...prev,
+      showTokenizeModal: true,
+      tokenizeClaim: claim,
+    }));
+  };
+
+  const handleClaimTokenized = async (updatedClaim: Claim) => {
+    if (!userClaimsService) return;
+
+    try {
+      // Update claim in Firestore with on-chain data
+      await userClaimsService.updateClaim(updatedClaim.id, {
+        tokenization: updatedClaim.tokenization,
+      });
+
+      // Reload claims to show updated tokenization status
+      await loadClaims();
+      console.log('✅ Claim tokenized successfully on-chain');
+    } catch (error) {
+      console.error('❌ Error saving tokenization data:', error);
+    }
   };
 
   const handleSaveClaim = async (updatedClaimData: Partial<Claim>) => {
@@ -605,9 +635,15 @@ export function ClaimsRegistry() {
                         // Check if claim is tokenized
                         if (!claim.tokenization?.onChain) {
                           return (
-                            <Badge variant="outline" className="text-xs">
-                              Not Tokenized
-                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTokenizeClaim(claim)}
+                              className="text-xs"
+                            >
+                              <Coins className="w-3 h-3 mr-1" />
+                              Tokenize
+                            </Button>
                           );
                         }
 
@@ -743,6 +779,17 @@ export function ClaimsRegistry() {
           onSave={handleSaveClaim}
         />
       )}
+
+      <TokenizeClaimModal
+        claim={state.tokenizeClaim}
+        isOpen={state.showTokenizeModal}
+        onClose={() => setState(prev => ({
+          ...prev,
+          showTokenizeModal: false,
+          tokenizeClaim: null
+        }))}
+        onTokenized={handleClaimTokenized}
+      />
     </div>
   );
 }
