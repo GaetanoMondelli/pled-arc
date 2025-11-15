@@ -401,14 +401,19 @@ export function FilingHistoryTab({ companyId, executionId }: FilingHistoryTabPro
       {showEventsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
-            <div className="bg-[#1d70b8] text-white px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Execution Events</h2>
-              <button
-                onClick={() => setShowEventsModal(false)}
-                className="text-white hover:text-gray-200 text-2xl font-bold"
-              >
-                ×
-              </button>
+            <div className="bg-[#1d70b8] text-white px-6 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-bold">Execution Events</h2>
+                <button
+                  onClick={() => setShowEventsModal(false)}
+                  className="text-white hover:text-gray-200 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="text-sm opacity-90">
+                <span className="font-semibold">Execution ID:</span> {executionId}
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">

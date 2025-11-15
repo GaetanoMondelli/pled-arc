@@ -162,10 +162,24 @@ export async function POST(req: NextRequest) {
         } else {
           const doclingData = await doclingResponse.json();
           console.log('✅ Document parsed successfully');
+          console.log('📄 Docling response structure:', JSON.stringify(doclingData, null, 2).substring(0, 500));
 
           // Transform Docling response format to expected format
+          // Use the full structure data from Docling or create a better JSON representation
+          const jsonOutput = doclingData.content?.structure && Object.keys(doclingData.content.structure).length > 0
+            ? doclingData.content.structure
+            : {
+                documentType: 'Parsed Document',
+                fileName: fileName,
+                processedAt: new Date().toISOString(),
+                metadata: doclingData.content?.metadata || {},
+                structure: doclingData.content?.structure || {},
+                // Include text chunks in JSON for better searchability
+                textChunks: doclingData.content?.text_chunks || []
+              };
+
           parsedData = {
-            json_output: doclingData.content?.structure || {},
+            json_output: jsonOutput,
             text_output: doclingData.content?.text_chunks?.map((c: any) => c.text).join('\n\n') || '',
             markdown_output: doclingData.content?.markdown || ''
           };
@@ -252,11 +266,14 @@ export async function POST(req: NextRequest) {
               data: {
                 documentId,
                 companyId,
+                executionId, // Add execution ID to event data
+                executionName: `DAO House - ${companyId}`, // Add execution name
                 fileName,
                 formats: filing?.formats || {},
                 textContent: parsedData.text_output,
                 jsonContent: parsedData.json_output,
                 processedAt: new Date().toISOString(),
+                usedMockData, // Track if mock data was used
               },
               timestamp: Date.now(),
             },

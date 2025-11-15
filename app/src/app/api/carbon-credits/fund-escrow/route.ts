@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 
-const REWARD_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_GREEN_ENERGY_REWARD_ADDRESS!;
+const REWARD_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CARBON_CREDIT_REWARD_ADDRESS!;
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 export async function POST(request: NextRequest) {

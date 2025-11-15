@@ -246,7 +246,7 @@ export default function CarbonCreditsPage() {
       <div className="flex items-center gap-3">
         <Leaf className="h-8 w-8 text-green-600" />
         <div>
-          <h1 className="text-3xl font-bold">Green Energy Carbon Credits</h1>
+          <h1 className="text-3xl font-bold">Carbon Credit Rewards</h1>
           <p className="text-muted-foreground">
             Claim USDC rewards for your verified carbon credit claims
           </p>

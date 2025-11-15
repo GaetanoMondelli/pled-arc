@@ -14,8 +14,8 @@ interface IERC20 {
 }
 
 /**
- * @title GreenEnergyReward
- * @notice Escrow contract for green energy carbon credit fund rewards
+ * @title CarbonCreditReward
+ * @notice Escrow contract for carbon credit fund rewards
  * @dev Receives verifiable claims and distributes USDC rewards based on claim value
  *
  * Reward Formula: claim number * 0.01 USDC
@@ -28,7 +28,7 @@ interface IERC20 {
  * - Track claimed rewards to prevent double-claiming
  * - Admin controls for funding and emergency withdrawal
  */
-contract GreenEnergyReward {
+contract CarbonCreditReward {
 
     // ============================================================================
     // STATE VARIABLES

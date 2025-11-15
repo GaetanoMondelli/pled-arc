@@ -3,7 +3,7 @@ import { createPublicClient, http } from "viem";
 import { defineChain } from "viem";
 
 const CLAIM_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_INCREMENTAL_CLAIM_CONTRACT_ADDRESS!;
-const REWARD_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_GREEN_ENERGY_REWARD_ADDRESS!;
+const REWARD_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CARBON_CREDIT_REWARD_ADDRESS!;
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 // Define Arc Testnet chain

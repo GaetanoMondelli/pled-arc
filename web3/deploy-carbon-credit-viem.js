@@ -1,5 +1,5 @@
 /**
- * Deploy GreenEnergyReward contract to Arc using Viem
+ * Deploy CarbonCreditReward contract to Arc using Viem
  */
 
 import { createWalletClient, createPublicClient, http } from 'viem';
@@ -43,8 +43,8 @@ const arcTestnet = defineChain({
 // Arc Testnet USDC address (native USDC)
 const ARC_USDC_ADDRESS = '0x3600000000000000000000000000000000000000';
 
-async function deployGreenEnergyReward() {
-  console.log('\n🌱 Deploying GreenEnergyReward Contract to ARC-TESTNET\n');
+async function deployCarbonCreditReward() {
+  console.log('\n🌱 Deploying CarbonCreditReward Contract to ARC-TESTNET\n');
   console.log('═══════════════════════════════════════════════════════\n');
 
   const privateKey = process.env.ARC_TESTNET_PRIVATE_KEY;
@@ -90,8 +90,8 @@ async function deployGreenEnergyReward() {
     'utf8'
   );
 
-  const greenEnergySource = fs.readFileSync(
-    path.join(__dirname, 'contracts/GreenEnergyReward.sol'),
+  const carbonCreditSource = fs.readFileSync(
+    path.join(__dirname, 'contracts/CarbonCreditReward.sol'),
     'utf8'
   );
 
@@ -107,8 +107,8 @@ async function deployGreenEnergyReward() {
       'IncrementalVerifiableClaim.sol': {
         content: claimContractSource
       },
-      'GreenEnergyReward.sol': {
-        content: greenEnergySource
+      'CarbonCreditReward.sol': {
+        content: carbonCreditSource
       }
     },
     settings: {
@@ -140,7 +140,7 @@ async function deployGreenEnergyReward() {
     }
   }
 
-  const contract = output.contracts['GreenEnergyReward.sol'].GreenEnergyReward;
+  const contract = output.contracts['CarbonCreditReward.sol'].CarbonCreditReward;
   const abi = contract.abi;
   const bytecode = `0x${contract.evm.bytecode.object}`;
 
@@ -163,7 +163,7 @@ async function deployGreenEnergyReward() {
 
   console.log('✅ CONTRACT DEPLOYED SUCCESSFULLY!\n');
   console.log('═══════════════════════════════════════════════════════');
-  console.log('🌱 Green Energy Carbon Credit Fund Reward');
+  console.log('🌱 Carbon Credit Reward Fund');
   console.log('═══════════════════════════════════════════════════════\n');
   console.log('Contract Address:', receipt.contractAddress);
   console.log('Deployer:', account.address);
@@ -175,15 +175,15 @@ async function deployGreenEnergyReward() {
   console.log('═══════════════════════════════════════════════════════\n');
   console.log(`🔗 View on explorer: https://testnet.arcscan.app/address/${receipt.contractAddress}\n`);
   console.log(`📝 Update your .env file:`);
-  console.log(`NEXT_PUBLIC_GREEN_ENERGY_REWARD_ADDRESS=${receipt.contractAddress}\n`);
+  console.log(`NEXT_PUBLIC_CARBON_CREDIT_REWARD_ADDRESS=${receipt.contractAddress}\n`);
   console.log('\n💡 Next steps:');
-  console.log('   1. Add to .env: NEXT_PUBLIC_GREEN_ENERGY_REWARD_ADDRESS=' + receipt.contractAddress);
+  console.log('   1. Add to .env: NEXT_PUBLIC_CARBON_CREDIT_REWARD_ADDRESS=' + receipt.contractAddress);
   console.log('   2. Fund the escrow with USDC using fundEscrow()');
   console.log('   3. Mint verifiable claims with IncrementalVerifiableClaim');
   console.log('   4. Claim rewards using claimReward(tokenId)');
-  console.log('   5. Run: node test-green-energy-reward.js\n');
+  console.log('   5. Run: node test-carbon-credit-reward.js\n');
 
   return receipt.contractAddress;
 }
 
-deployGreenEnergyReward().catch(console.error);
+deployCarbonCreditReward().catch(console.error);
