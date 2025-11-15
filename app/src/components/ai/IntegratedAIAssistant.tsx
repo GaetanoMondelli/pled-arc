@@ -1783,9 +1783,13 @@ The LangGraph document improvement agent encountered an issue. Please try again 
 
           // Also trigger visual diagram update using loadScenario if available
           if (loadScenario) {
-            console.log('Loading scenario into visual diagram...');
+            console.log('🎨 [IntegratedAI] Loading scenario into visual diagram...');
+            console.log('🎨 [IntegratedAI] Scenario to load has', data.scenario.nodes.length, 'nodes');
+            console.log('🎨 [IntegratedAI] Node IDs:', data.scenario.nodes.map((n: any) => n.nodeId));
             await loadScenario(data.scenario);
-            console.log('✅ Visual diagram updated successfully!');
+            console.log('✅ [IntegratedAI] Visual diagram updated successfully!');
+          } else {
+            console.warn('⚠️ [IntegratedAI] loadScenario prop is NOT PROVIDED - diagram will not update!');
           }
 
           console.log('✅ WORKFLOW-AGENT SCENARIO APPLIED SUCCESSFULLY!');

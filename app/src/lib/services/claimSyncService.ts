@@ -73,8 +73,7 @@ export function computeClaimSyncStatus(
  * Generates block explorer URL for Arc Testnet
  */
 export function getArcTestnetExplorerUrl(contractAddress: string, tokenId: string): string {
-  // TODO: Update with actual Arc Testnet block explorer URL
-  return `https://explorer.arc.xyz/token/${contractAddress}/${tokenId}`;
+  return `https://testnet.arcscan.app/address/${contractAddress}`;
 }
 
 /**

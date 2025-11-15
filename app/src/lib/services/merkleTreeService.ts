@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { keccak256, toHex } from 'viem';
 import {
   MerkleTree,
   MerkleProof,
@@ -11,19 +11,38 @@ import {
 } from '@/core/types/claims';
 
 /**
- * Hashes an event object deterministically
+ * Hashes an event object deterministically using keccak256 (Ethereum-compatible)
+ * This MUST match the hashing in claimContractService.ts
  */
 function hashEvent(event: any): string {
   // Create deterministic JSON string (sorted keys)
-  const eventString = JSON.stringify(event, Object.keys(event).sort());
-  return crypto.createHash('sha256').update(eventString).digest('hex');
+  const sortedKeys = Object.keys(event).sort();
+  const sortedEvent: any = {};
+  sortedKeys.forEach(key => {
+    sortedEvent[key] = event[key];
+  });
+
+  const eventString = JSON.stringify(sortedEvent);
+  const hash = keccak256(toHex(eventString));
+
+  // Return hex string without 0x prefix for compatibility with existing code
+  return hash.slice(2);
 }
 
 /**
- * Hashes two strings together
+ * Hashes two strings together using keccak256
  */
 function hashPair(left: string, right: string): string {
-  return crypto.createHash('sha256').update(left + right).digest('hex');
+  // Add 0x prefix if not present
+  const leftHex = left.startsWith('0x') ? left : `0x${left}`;
+  const rightHex = right.startsWith('0x') ? right : `0x${right}`;
+
+  // Concatenate and hash
+  const combined = leftHex + rightHex.slice(2); // Remove 0x from right to avoid 0x0x
+  const hash = keccak256(combined as `0x${string}`);
+
+  // Return hex string without 0x prefix
+  return hash.slice(2);
 }
 
 /**
