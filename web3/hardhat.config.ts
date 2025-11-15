@@ -1,5 +1,6 @@
 import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-verify";
 
 export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
@@ -42,4 +43,22 @@ export default defineConfig({
       chainId: 5042002,
     },
   },
+  etherscan: {
+    apiKey: {
+      arcTestnet: "empty",
+    },
+    customChains: [
+      {
+        network: "arcTestnet",
+        chainId: 5042002,
+        urls: {
+          apiURL: "https://testnet.arcscan.app/api",
+          browserURL: "https://testnet.arcscan.app"
+        }
+      }
+    ]
+  },
+  sourcify: {
+    enabled: false
+  }
 });

@@ -59,6 +59,15 @@ contract IncrementalVerifiableClaim {
     /// @notice Contract deployer (can mint claims)
     address public immutable deployer;
 
+    /// @notice Array of all token IDs (for enumeration)
+    uint256[] private _allTokens;
+
+    /// @notice Mapping from token ID to index in _allTokens array
+    mapping(uint256 => uint256) private _allTokensIndex;
+
+    /// @notice Total number of tokens minted
+    uint256 private _totalSupply;
+
     // ============================================================================
     // EVENTS
     // ============================================================================
@@ -175,6 +184,11 @@ contract IncrementalVerifiableClaim {
         // Update ownership mappings
         ownerOf[tokenId] = to;
         balanceOf[uint256(uint160(to))]++;
+
+        // Add to enumeration
+        _allTokensIndex[tokenId] = _allTokens.length;
+        _allTokens.push(tokenId);
+        _totalSupply++;
 
         emit ClaimMinted(
             tokenId,
@@ -330,12 +344,28 @@ contract IncrementalVerifiableClaim {
 
     /**
      * @notice Returns the total supply of tokens
-     * @dev With deterministic tokenIds, we can't track total supply with a counter
-     * @dev This function is deprecated - use event logs to count minted tokens
-     * @return uint256 always returns 0
+     * @return uint256 Total number of minted tokens
      */
-    function totalSupply() public pure returns (uint256) {
-        return 0; // Deprecated - use event logs to count minted tokens
+    function totalSupply() public view returns (uint256) {
+        return _totalSupply;
+    }
+
+    /**
+     * @notice Get token ID by index (ERC721Enumerable)
+     * @param index Index in the token array
+     * @return uint256 Token ID at the given index
+     */
+    function tokenByIndex(uint256 index) public view returns (uint256) {
+        require(index < _totalSupply, "Index out of bounds");
+        return _allTokens[index];
+    }
+
+    /**
+     * @notice Get all token IDs
+     * @return uint256[] Array of all token IDs
+     */
+    function getAllTokenIds() public view returns (uint256[] memory) {
+        return _allTokens;
     }
 
     // ============================================================================
