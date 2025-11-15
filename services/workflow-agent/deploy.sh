@@ -11,6 +11,14 @@ SERVICE_NAME="workflow-agent"
 REGION=${REGION:-"us-central1"}
 API_KEY=${WORKFLOW_AGENT_API_KEY:-$(openssl rand -hex 32)}
 
+# Check for required GOOGLE_AI_API_KEY
+if [ -z "$GOOGLE_AI_API_KEY" ]; then
+    echo "❌ Error: GOOGLE_AI_API_KEY environment variable is required"
+    echo "   Get your API key from: https://aistudio.google.com/app/apikey"
+    echo "   Then run: export GOOGLE_AI_API_KEY=your_api_key_here"
+    exit 1
+fi
+
 echo "🚀 Deploying Workflow Agent to Google Cloud Run"
 echo "📋 Project: $PROJECT_ID"
 echo "🌍 Region: $REGION"
@@ -33,7 +41,7 @@ gcloud run deploy $SERVICE_NAME \
     --platform managed \
     --region $REGION \
     --allow-unauthenticated \
-    --set-env-vars "WORKFLOW_AGENT_API_KEY=$API_KEY,GOOGLE_AI_API_KEY=AIzaSyD9Wa0jy-3C4zb0kVsPS-sDD5DaN8GuJjY,GOOGLE_API_KEY=AIzaSyD9Wa0jy-3C4zb0kVsPS-sDD5DaN8GuJjY" \
+    --set-env-vars "WORKFLOW_AGENT_API_KEY=$API_KEY,GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY},GOOGLE_API_KEY=${GOOGLE_AI_API_KEY}" \
     --set-env-vars NODE_ENV=production \
     --memory 2Gi \
     --cpu 1 \

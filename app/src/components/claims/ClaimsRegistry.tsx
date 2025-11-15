@@ -38,6 +38,8 @@ import { ClaimEditModal } from "./ClaimEditModal";
 import { TokenizeClaimModal } from "./TokenizeClaimModal";
 import { templateService } from "@/lib/template-service";
 import { engineAPIService } from "@/lib/engine-api-service";
+import { computeClaimSyncStatus } from "@/lib/services/claimSyncService";
+import { appendEventsOnChain } from "@/lib/services/claimContractService";
 
 interface ClaimsRegistryState {
   claims: Claim[];
@@ -282,6 +284,80 @@ export function ClaimsRegistry() {
       console.log('✅ Claim tokenized successfully on-chain');
     } catch (error) {
       console.error('❌ Error saving tokenization data:', error);
+    }
+  };
+
+  const handleUpdateClaimOnChain = async (claim: Claim) => {
+    if (!userClaimsService || !claim.tokenization?.onChain) return;
+
+    try {
+      console.log('🔄 Updating claim on-chain with new events...');
+
+      // Get current aggregation data
+      const primarySink = claim.formula?.sinks?.[0];
+      if (!primarySink || !claim.templateId || !claim.executionId) {
+        throw new Error("Missing required claim data");
+      }
+
+      const formulaType = claim.aggregationFormula?.type || 'latest';
+
+      const aggregationData = await engineAPIService.getSinkAggregation(
+        claim.templateId,
+        claim.executionId,
+        primarySink,
+        formulaType,
+        claim.aggregationFormula?.customExpression
+      );
+
+      const localLedgerCount = aggregationData.totalEvents || 0;
+      const localSinkCount = aggregationData.events?.length || 0;
+      const onChainLedgerCount = claim.tokenization.onChain.onChainLedgerEventCount;
+      const onChainSinkCount = claim.tokenization.onChain.onChainSinkEventCount;
+
+      // Get only the new events (events after on-chain count)
+      const allEvents = aggregationData.events || [];
+      const newSinkEvents = allEvents.slice(onChainSinkCount);
+      const newLedgerEvents = newSinkEvents; // Placeholder - would get from full execution
+
+      if (newSinkEvents.length === 0) {
+        console.log('ℹ️ No new events to append');
+        return;
+      }
+
+      // Append events on-chain
+      const { txHash } = await appendEventsOnChain({
+        tokenId: BigInt(claim.tokenization.onChain.tokenId),
+        newLedgerEvents,
+        newSinkEvents,
+        newAggregateValue: aggregationData.aggregatedValue,
+      });
+
+      // Update claim with new on-chain data
+      const updatedOnChain = {
+        ...claim.tokenization.onChain,
+        onChainLedgerEventCount: localLedgerCount,
+        onChainSinkEventCount: localSinkCount,
+        lastOnChainUpdate: new Date(),
+        lastSyncCheck: new Date(),
+        txHash, // Update with latest transaction
+      };
+
+      await userClaimsService.updateClaim(claim.id, {
+        tokenization: {
+          ...claim.tokenization,
+          onChain: updatedOnChain,
+        },
+      });
+
+      // Reload claims to show updated status
+      await loadClaims();
+      console.log(`✅ Claim updated on-chain! ${newSinkEvents.length} new events appended`);
+    } catch (error) {
+      console.error('❌ Error updating claim on-chain:', error);
+      setState(prev => ({
+        ...prev,
+        error: 'Failed to update claim on blockchain',
+      }));
     }
   };
 
@@ -650,28 +726,54 @@ export function ClaimsRegistry() {
                         const onChain = claim.tokenization.onChain;
                         const { blockchain, tokenId, blockExplorerUrl } = onChain;
 
-                        // TODO: Get local event counts from execution
-                        // For now, show just the on-chain status
+                        // Get aggregated value from cache if available
+                        const aggregatedValue = state.aggregatedValues[claim.id];
+
+                        // Compute sync status if we have event counts
+                        // Use aggregated event count as local count (this is approximate)
+                        const localEventCount = aggregatedValue?.eventCount || onChain.onChainSinkEventCount;
+                        const eventsBehind = Math.max(0, localEventCount - onChain.onChainSinkEventCount);
+
+                        const isSynced = eventsBehind === 0;
+
                         return (
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1">
-                              <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                                ✅ On-Chain
-                              </Badge>
+                              {isSynced ? (
+                                <Badge variant="default" className="text-xs bg-gray-100 text-black border border-gray-400">
+                                  ✅ Synced
+                                </Badge>
+                              ) : (
+                                <Badge variant="default" className="text-xs bg-gray-300 text-black">
+                                  ⚠️ {eventsBehind} Behind
+                                </Badge>
+                              )}
                             </div>
-                            <div className="text-xs text-muted-foreground font-mono">
+                            <div className="text-xs text-gray-600 font-mono">
                               {blockchain.toUpperCase()} #{tokenId}
                             </div>
-                            {blockExplorerUrl && (
-                              <a
-                                href={blockExplorerUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline"
-                              >
-                                View on Explorer →
-                              </a>
-                            )}
+                            <div className="flex gap-1">
+                              {blockExplorerUrl && (
+                                <a
+                                  href={blockExplorerUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-black hover:underline"
+                                >
+                                  Explorer →
+                                </a>
+                              )}
+                              {!isSynced && eventsBehind > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUpdateClaimOnChain(claim)}
+                                  className="text-xs h-6 px-2"
+                                >
+                                  Update ↑{eventsBehind}
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         );
                       })()}

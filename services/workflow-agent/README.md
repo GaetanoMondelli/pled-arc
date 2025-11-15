@@ -118,8 +118,8 @@ workflow-agent/
 # Install dependencies
 npm install
 
-# Set API key
-export GOOGLE_AI_API_KEY=AIzaSyD9Wa0jy-3C4zb0kVsPS-sDD5DaN8GuJjY
+# Set API key (get from https://aistudio.google.com/app/apikey)
+export GOOGLE_AI_API_KEY=your_api_key_here
 
 # Run locally
 npm run dev
@@ -186,7 +186,7 @@ Content-Type: application/json
 # Update existing deployment
 gcloud run services update workflow-agent \
   --region us-central1 \
-  --set-env-vars "GOOGLE_AI_API_KEY=AIzaSyD9Wa0jy-3C4zb0kVsPS-sDD5DaN8GuJjY"
+  --set-env-vars "GOOGLE_AI_API_KEY=your_api_key_here"
 ```
 
 ## 🧪 Testing
