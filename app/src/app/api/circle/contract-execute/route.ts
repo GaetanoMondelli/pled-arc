@@ -17,18 +17,19 @@ export async function POST(request: NextRequest) {
     const { getCircleClient } = await import('@/lib/circle-wallet');
     const client = getCircleClient();
 
-    // Generate entity secret ciphertext for signing
-    const ciphertext = await client.generateEntitySecretCiphertext();
-
-    // Execute contract transaction
+    // Execute contract transaction with proper fee structure
     const transaction = await client.createContractExecutionTransaction({
       walletId,
       contractAddress,
       abiFunctionSignature,
       abiParameters: abiParameters || [],
-      feeLevel: 'MEDIUM',
-      idempotencyKey: crypto.randomUUID(),
-      entitySecretCiphertext: ciphertext
+      fee: {
+        type: 'level',
+        config: {
+          feeLevel: 'MEDIUM'
+        }
+      },
+      idempotencyKey: crypto.randomUUID()
     });
 
     return NextResponse.json({
