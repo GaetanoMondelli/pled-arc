@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SimulationEngine } from '@/core/implementations/SimulationEngine';
-import { ExternalEventQueue } from '@/core/ExternalEventQueue';
 import { AggregationFormulaType } from '@/core/types/claims';
 
 export async function GET(
@@ -14,103 +12,59 @@ export async function GET(
     const customExpression = searchParams.get('customExpression');
 
     console.log(`🔍 DEBUGGING API: Aggregating sink data for template=${templateId}, execution=${executionId}, sink=${sinkId}, formula=${formulaType}`);
-    console.log(`🔍 DEBUGGING API: searchParams.get('formula')=${searchParams.get('formula')}`);
 
     // Base URL for internal API calls - use actual request host
     const host = request.headers.get('host');
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
     const baseUrl = `${protocol}://${host}`;
 
-    console.log(`🔍 DEBUGGING BASE URL: host=${host}, protocol=${protocol}, baseUrl=${baseUrl}`);
+    // 1. Use the step API to get simulation state at the end
+    const stepUrl = `${baseUrl}/api/engine/templates/${templateId}/executions/${executionId}/step?currentStep=end`;
+    console.log(`🔍 Fetching simulation state from: ${stepUrl}`);
 
-    // 1. Load template and execution data (using working pattern)
-    const [templateResponse, executionResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/admin/templates/${templateId}`),
-      fetch(`${baseUrl}/api/admin/executions/${executionId}`)
-    ]);
+    const stepResponse = await fetch(stepUrl);
 
-    if (!templateResponse.ok) {
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
-    }
-    if (!executionResponse.ok) {
-      return NextResponse.json({ error: 'Execution not found' }, { status: 404 });
-    }
-
-    const templateData = (await templateResponse.json()).template;
-    const executionData = (await executionResponse.json()).execution;
-
-    // 2. Validate sinkId exists in template
-    const templateNodes = templateData?.scenario?.nodes || [];
-    const sinkNode = templateNodes.find((node: any) => node.nodeId === sinkId);
-
-    if (!sinkNode) {
+    if (!stepResponse.ok) {
+      const errorData = await stepResponse.json();
       return NextResponse.json({
-        error: `Sink '${sinkId}' not found in template '${templateId}'`,
-        availableNodes: templateNodes.map((n: any) => n.nodeId)
-      }, { status: 404 });
+        error: errorData.error || 'Failed to fetch simulation state',
+        details: errorData
+      }, { status: stepResponse.status });
     }
 
-    if (sinkNode.type !== 'Sink') {
-      return NextResponse.json({
-        error: `Node '${sinkId}' is not a sink (type: ${sinkNode.type})`
-      }, { status: 400 });
-    }
+    const stepData = await stepResponse.json();
 
-    // 3. Initialize SimulationEngine and run to get real events (using working pattern)
-    console.log(`🚀 Initializing SimulationEngine for sink aggregation...`);
-    const engine = new SimulationEngine();
-    await engine.loadScenario(templateData.scenario);
-
-    // 4. Create ExternalEventQueue and connect to engine
-    const externalQueue = new ExternalEventQueue();
-    externalQueue.setSimulationEngine(engine);
-
-    // 5. Add external events to queue
-    const externalEvents = executionData.externalEvents || [];
-    for (const event of externalEvents) {
-      externalQueue.addEvent(event);
-    }
-
-    console.log(`✅ Added ${externalEvents.length} external events to ExternalEventQueue`);
-
-    // 6. Run simulation to completion to get activity log
-    const result = await engine.run({
-      maxSteps: 1000,
-      maxTicks: Date.now() + 30000, // 30 second timeout
-      realTimeMode: false,
-      debugMode: true
+    console.log(`🔍 DEBUGGING: stepData received:`, {
+      step: stepData.step,
+      totalActivities: stepData.allActivities?.length,
+      queueSize: stepData.queueSize
     });
 
-    console.log(`🏁 Simulation completed: steps=${result.totalSteps}`);
-
-    // 7. Get real activity log and filter for this sink
-    const realActivityLog = engine.getActivities();
-    const sinkEvents = realActivityLog.filter((entry: any) =>
-      entry.nodeId === sinkId ||
-      entry.node === sinkId ||
-      entry.targetNodeId === sinkId ||
-      (entry.details && entry.details.includes(sinkId))
+    // 2. Filter allActivities for token_consumed events at this sink
+    const allActivities = stepData.allActivities || [];
+    const sinkEvents = allActivities.filter((entry: any) =>
+      entry.nodeId === sinkId && entry.action === 'token_consumed'
     );
 
-    console.log(`🎯 Found ${sinkEvents.length} events for sink ${sinkId} from ${realActivityLog.length} total events`);
-    console.log(`🔍 DEBUGGING API: Sink events:`, sinkEvents.map(e => ({ action: e.action, value: e.value, nodeId: e.nodeId })));
+    console.log(`🎯 Found ${sinkEvents.length} token_consumed events for sink ${sinkId} from ${allActivities.length} total activities`);
+    console.log(`🔍 DEBUGGING API: Sink events:`, sinkEvents.map((e: any) => ({ action: e.action, value: e.value, nodeId: e.nodeId })));
 
-    // 8. Apply aggregation formula
+    // 4. Apply aggregation formula
     const aggregatedValue = await applySinkAggregation(sinkEvents, formulaType, customExpression);
 
     return NextResponse.json({
       templateId,
       executionId,
       sinkId,
-      sinkType: sinkNode.type,
+      sinkType: 'Sink',
       formula: formulaType,
       customExpression,
       aggregatedValue,
       totalEvents: sinkEvents.length,
-      totalActivityLogEntries: realActivityLog.length,
+      totalActivityLogEntries: allActivities.length,
       events: sinkEvents,
       timestamp: new Date().toISOString(),
-      dataSource: "real_simulation_engine"
+      dataSource: "step_api_endpoint"
     });
 
   } catch (error) {

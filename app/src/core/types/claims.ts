@@ -663,6 +663,7 @@ export interface OnChainClaimData {
   txHash: string;                    // Minting transaction hash
   mintedAt: Date;                    // When minted on-chain
   ownerAddress: string;              // Current owner wallet address
+  walletId?: string;                 // Circle wallet ID used for minting (for syncing)
 
   // Contract Interaction
   standard: 'ERC721' | 'ERC1155' | 'custom';
@@ -674,6 +675,7 @@ export interface OnChainClaimData {
   // Sync State (for Incremental Merkle Trees)
   onChainLedgerEventCount: number;   // Number of ledger events stored on-chain
   onChainSinkEventCount: number;     // Number of sink events stored on-chain
+  onChainAggregateValue?: string;    // Last known aggregate value on-chain
   lastOnChainUpdate?: Date;          // When appendEvents() was last called
   lastSyncCheck?: Date;              // When we last checked sync status
 

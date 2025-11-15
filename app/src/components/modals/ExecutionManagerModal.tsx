@@ -96,17 +96,6 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
     setIsLoading(true);
     try {
       const executions = await templateService.getExecutions(currentTemplate.id);
-      console.log('📥 Loaded executions:', executions.length);
-      executions.forEach((exec, i) => {
-        console.log(`📥 Execution ${i}:`, {
-          name: exec.name,
-          totalExternalEvents: exec.totalExternalEvents,
-          externalEventsLength: exec.externalEvents?.length,
-          eventTypes: exec.eventTypes,
-          startedAt: exec.startedAt,
-          lastSavedAt: exec.lastSavedAt
-        });
-      });
       setAvailableExecutions(executions);
     } catch (error) {
       console.error("Error loading executions:", error);
@@ -136,18 +125,21 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
       // Load the saved external events back into the queue
       // Support both 'externalEvents' and 'events' fields for compatibility
       const externalEvents = execution.externalEvents || execution.events || [];
-      console.log('📥 Loading external events:', externalEvents.length);
-      console.log('📥 Execution has externalEvents?', !!execution.externalEvents);
-      console.log('📥 Execution has events?', !!execution.events);
 
       for (const event of externalEvents) {
+        // Ensure event has required fields
+        if (!event || typeof event !== 'object') {
+          console.warn('⚠️ Skipping invalid event:', event);
+          continue;
+        }
+
         // Add each external event back to the queue
         // Support both 'targetDataSourceId' and 'nodeId' for compatibility
         await externalQueue.addEvent({
           id: event.id,
           timestamp: event.timestamp,
           type: event.type,
-          source: event.source || 'EXTERNAL',
+          source: event.source,
           data: event.data,
           targetDataSourceId: event.targetDataSourceId || event.nodeId
         });
@@ -198,6 +190,20 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
     await saveExecutionWithExternalEvents(newExecutionName.trim(), newExecutionDescription.trim() || undefined);
   };
 
+  const handleSaveCurrent = async () => {
+    // If an execution is already loaded, save to it directly (append mode)
+    if (currentlyLoadedExecution) {
+      const loadedExecution = availableExecutions.find(ex => ex.id === currentlyLoadedExecution);
+      if (loadedExecution) {
+        await saveExecutionWithExternalEvents(loadedExecution.name);
+        return;
+      }
+    }
+
+    // Otherwise, show the form to create a new execution
+    setShowSaveForm(true);
+  };
+
   const saveExecutionWithExternalEvents = async (name: string, description?: string) => {
     if (!scenario || !currentTemplate) {
       toast({
@@ -221,8 +227,6 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
     try {
       // Get all external events for replay
       const externalEvents = externalQueue.getAllEvents();
-      console.log('💾 Saving external events for replay:', externalEvents.length);
-      console.log('💾 External events data:', externalEvents);
 
       // Check if execution with this name already exists (from URL or loaded state)
       let existingExecution = currentlyLoadedExecution
@@ -231,20 +235,20 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
 
       if (existingExecution) {
         // APPEND mode: Push new events to existing execution
-        const existingEventCount = existingExecution.externalEvents?.length || existingExecution.events?.length || 0;
+        const existingEventCount = (existingExecution as any).totalExternalEvents || 0;
         const newEvents = externalEvents.slice(existingEventCount); // Only new events
 
         if (newEvents.length > 0) {
-          console.log(`💾 Appending ${newEvents.length} new events to existing execution ${existingExecution.id}`);
+          // Unwrap events if they're wrapped in simulation format
+          const unwrappedEvents = newEvents.map((e: any) => e.value || e);
 
-          const result = await templateService.pushEventsToExecution(existingExecution.id, newEvents);
+          const result = await templateService.pushEventsToExecution(existingExecution.id, unwrappedEvents);
 
           toast({
             title: "Events appended successfully",
             description: `Added ${result.eventsAdded} new events to "${name}". Total: ${result.totalEvents} events.`,
           });
         } else {
-          console.log('💾 No new events to append');
           toast({
             title: "No new events",
             description: `Execution "${name}" already has all ${existingEventCount} events.`,
@@ -252,20 +256,20 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
         }
       } else {
         // CREATE mode: Create new execution with events
-        console.log(`💾 Creating new execution "${name}" with ${externalEvents.length} events`);
+        // Unwrap events if they're wrapped in simulation format
+        const unwrappedEvents = externalEvents.map((e: any) => e.value || e);
 
         const result = await templateService.createExecutionWithEvents({
           templateId: currentTemplate.id,
           name,
           description,
-          externalEvents
+          externalEvents: unwrappedEvents
         });
 
         setCurrentlyLoadedExecution(result.executionId);
 
         // Update URL to reflect current execution
         const newUrl = `/template-editor/${currentTemplate.id}?execution=${result.executionId}`;
-        console.log('🔄 Updating URL to:', newUrl);
         router.replace(newUrl);
 
         toast({
@@ -576,9 +580,9 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
                     )}
                     Quick Save
                   </Button>
-                  <Button onClick={() => setShowSaveForm(true)} disabled={!scenario}>
+                  <Button onClick={handleSaveCurrent} disabled={!scenario}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Save Current
+                    {currentlyLoadedExecution ? "Save to Current" : "Save Current"}
                   </Button>
                 </div>
               </div>
@@ -597,9 +601,9 @@ const ExecutionManagerModal: React.FC<ExecutionManagerModalProps> = ({ isOpen, o
                       <p className="text-sm text-gray-500 mb-4">
                         Save your current simulation state to preserve progress.
                       </p>
-                      <Button onClick={() => setShowSaveForm(true)} disabled={!scenario}>
+                      <Button onClick={handleSaveCurrent} disabled={!scenario}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Save Current Execution
+                        {currentlyLoadedExecution ? "Save to Current Execution" : "Save Current Execution"}
                       </Button>
                     </div>
                   ) : (

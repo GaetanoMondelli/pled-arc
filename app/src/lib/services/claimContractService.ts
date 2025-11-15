@@ -183,13 +183,12 @@ export async function mintClaimOnChain(params: {
   console.log('✅ [Circle SDK] Transaction created!');
   console.log('  Transaction ID:', transactionId);
 
-  // Use deterministic tokenId based on claim title (name)
-  // This way you can create multiple NFTs for the same claim with different titles
-  const tokenIdSource = claimTitle || claimId; // Use title if provided, otherwise claimId
-  const tokenIdHash = keccak256(toHex(tokenIdSource));
+  // IMPORTANT: Contract hashes the claimId parameter to get tokenId
+  // Frontend MUST hash the SAME claimId to poll for the token
+  const tokenIdHash = keccak256(toHex(claimId));
   const tokenId = BigInt(tokenIdHash);
 
-  console.log('  Token ID from:', tokenIdSource);
+  console.log('  Token ID from claimId:', claimId);
   console.log('  Token ID (hash):', tokenId.toString());
   console.log('  Contract:', contractAddress);
   console.log('  Strategy: Poll blockchain directly to verify token exists');
@@ -354,4 +353,72 @@ export function getArcExplorerTxUrl(txHash: string): string {
  */
 export function getArcExplorerTokenUrl(contractAddress: string, tokenId: string): string {
   return `https://testnet.arcscan.app/address/${contractAddress}`;
+}
+
+/**
+ * Get claim metadata from on-chain
+ */
+export async function getClaimMetadata(tokenId: bigint): Promise<{
+  claimId: string;
+  workflowId: string;
+  executionId: string;
+  aggregateValue: string;
+  metadataUri: string;
+  createdAt: bigint;
+  lastUpdatedAt: bigint;
+  owner: string;
+}> {
+  const client = getPublicClient();
+  const contractAddress = getContractAddress();
+
+  const result = await client.readContract({
+    address: contractAddress,
+    abi: CLAIM_CONTRACT_ABI,
+    functionName: 'getClaimMetadata',
+    args: [tokenId],
+  });
+
+  const [claimId, workflowId, executionId, aggregateValue, metadataUri, createdAt, lastUpdatedAt, owner] = result;
+
+  return {
+    claimId,
+    workflowId,
+    executionId,
+    aggregateValue,
+    metadataUri,
+    createdAt,
+    lastUpdatedAt,
+    owner,
+  };
+}
+
+/**
+ * Get claim state from on-chain
+ */
+export async function getClaimState(tokenId: bigint): Promise<{
+  ledgerRoot: string;
+  ledgerEventCount: bigint;
+  sinkRoot: string;
+  sinkEventCount: bigint;
+  aggregateValue: string;
+}> {
+  const client = getPublicClient();
+  const contractAddress = getContractAddress();
+
+  const result = await client.readContract({
+    address: contractAddress,
+    abi: CLAIM_CONTRACT_ABI,
+    functionName: 'getClaimState',
+    args: [tokenId],
+  });
+
+  const [ledgerRoot, ledgerEventCount, sinkRoot, sinkEventCount, aggregateValue] = result;
+
+  return {
+    ledgerRoot,
+    ledgerEventCount,
+    sinkRoot,
+    sinkEventCount,
+    aggregateValue,
+  };
 }

@@ -143,8 +143,6 @@ export async function POST(
       );
     }
 
-    console.log(`➕ Pushing ${newEvents.length} new events to execution ${executionId}`);
-
     // Get existing execution
     const execution = await pledStorageService.getExecution(executionId);
 

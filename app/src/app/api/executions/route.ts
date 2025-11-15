@@ -57,6 +57,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Debug: Log what we're receiving
+    console.log('📥 CREATE EXECUTION - Received events:', externalEvents.length);
+    console.log('📥 First event received:', JSON.stringify(externalEvents[0], null, 2));
+
     // Calculate event type statistics
     const eventTypes = [...new Set(externalEvents.map((e: ExternalEvent) => e.type))];
 
@@ -110,9 +114,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const templateId = searchParams.get('templateId');
 
-    const executions = await pledStorageService.listExecutions(
+    console.log(`🔍 GET /api/executions - templateId=${templateId}`);
+    const startTime = Date.now();
+
+    // Use summary for fast listing (doesn't read full files)
+    const executions = await pledStorageService.listExecutionsSummary(
       templateId || undefined
     );
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Fetched ${executions.length} executions in ${duration}ms`);
 
     return NextResponse.json({
       success: true,

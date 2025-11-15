@@ -74,6 +74,10 @@ export class PledStorageService {
   private readonly EXECUTIONS_FOLDER = 'arcpled/executions';
   private readonly MANIFEST_FILE = 'arcpled/manifest.json';
 
+  // In-memory cache for manifest (5 second TTL)
+  private manifestCache: { data: PledManifest; timestamp: number } | null = null;
+  private readonly MANIFEST_CACHE_TTL = 5000; // 5 seconds
+
   constructor() {
     console.log('PledStorageService initialized - using Firebase Storage');
   }
@@ -84,6 +88,15 @@ export class PledStorageService {
 
   private async getManifest(): Promise<PledManifest> {
     try {
+      // Check cache first
+      if (this.manifestCache && (Date.now() - this.manifestCache.timestamp) < this.MANIFEST_CACHE_TTL) {
+        console.log('📦 Manifest cache hit');
+        return this.manifestCache.data;
+      }
+
+      console.log('📥 Fetching manifest from Firebase Storage...');
+      const startTime = Date.now();
+
       const file = bucket.file(this.MANIFEST_FILE);
       const [exists] = await file.exists();
 
@@ -100,7 +113,18 @@ export class PledStorageService {
       }
 
       const [contents] = await file.download();
-      return JSON.parse(contents.toString('utf8'));
+      const manifest = JSON.parse(contents.toString('utf8'));
+
+      // Cache the result
+      this.manifestCache = {
+        data: manifest,
+        timestamp: Date.now()
+      };
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ Manifest fetched from Firebase Storage in ${duration}ms`);
+
+      return manifest;
     } catch (error) {
       console.error('Error getting PLED manifest:', error);
       throw new Error(`Failed to get manifest: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -116,6 +140,9 @@ export class PledStorageService {
           updated: new Date().toISOString()
         }
       });
+
+      // Invalidate cache after save
+      this.manifestCache = null;
     } catch (error) {
       console.error('Error saving PLED manifest:', error);
       throw new Error(`Failed to save manifest: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -245,9 +272,15 @@ export class PledStorageService {
       console.log('🗄️ Existing template found, has referenceDoc:', existingTemplate.referenceDoc ? `${existingTemplate.referenceDoc.length} characters` : 'NOT PRESENT');
 
       const now = Date.now();
+
+      // Filter out undefined values from updates to prevent overwriting existing fields
+      const cleanedUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, value]) => value !== undefined)
+      );
+
       const updatedTemplate: PledTemplate = {
         ...existingTemplate,
-        ...updates,
+        ...cleanedUpdates,
         id: templateId, // Ensure ID doesn't change
         updatedAt: now,
       };
@@ -357,7 +390,9 @@ export class PledStorageService {
         name: execution.name,
         status: execution.status,
         startedAt: execution.startedAt,
-        filePath: executionPath
+        filePath: executionPath,
+        totalExternalEvents: (execution as any).totalExternalEvents || (execution as any).externalEvents?.length || 0,
+        eventTypes: (execution as any).eventTypes || []
       });
       manifest.lastUpdated = now;
       await this.saveManifest(manifest);
@@ -388,6 +423,49 @@ export class PledStorageService {
     }
   }
 
+  /**
+   * List execution summaries from manifest (FAST - doesn't read full files)
+   * Use this for listing executions in the UI
+   */
+  async listExecutionsSummary(templateId?: string): Promise<Array<{
+    id: string;
+    templateId: string;
+    name: string;
+    status: string;
+    startedAt: number;
+    totalExternalEvents?: number;
+    eventTypes?: string[];
+  }>> {
+    try {
+      const manifest = await this.getManifest();
+
+      // Filter by templateId if provided
+      const executionInfos = templateId
+        ? manifest.executions.filter((e: any) => e.templateId === templateId)
+        : manifest.executions;
+
+      // Sort by start date (newest first)
+      return executionInfos
+        .map((e: any) => ({
+          id: e.id,
+          templateId: e.templateId,
+          name: e.name,
+          status: e.status,
+          startedAt: e.startedAt,
+          totalExternalEvents: e.totalExternalEvents,
+          eventTypes: e.eventTypes,
+        }))
+        .sort((a: any, b: any) => b.startedAt - a.startedAt);
+    } catch (error) {
+      console.error('Error listing execution summaries:', error);
+      throw new Error(`Failed to list executions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * List full executions (SLOW - reads all files)
+   * Only use when you need complete execution data
+   */
   async listExecutions(templateId?: string): Promise<PledExecution[]> {
     try {
       const manifest = await this.getManifest();
@@ -447,12 +525,25 @@ export class PledStorageService {
         }
       });
 
-      // Update manifest if status changed
-      if (updates.status && updates.status !== existingExecution.status) {
+      // Update manifest if status or external events changed
+      const shouldUpdateManifest =
+        (updates.status && updates.status !== existingExecution.status) ||
+        (updates as any).totalExternalEvents !== undefined ||
+        (updates as any).eventTypes !== undefined;
+
+      if (shouldUpdateManifest) {
         const manifest = await this.getManifest();
         const executionIndex = manifest.executions.findIndex(e => e.id === executionId);
         if (executionIndex >= 0) {
-          manifest.executions[executionIndex].status = updates.status;
+          if (updates.status) {
+            manifest.executions[executionIndex].status = updates.status;
+          }
+          if ((updates as any).totalExternalEvents !== undefined) {
+            (manifest.executions[executionIndex] as any).totalExternalEvents = (updates as any).totalExternalEvents;
+          }
+          if ((updates as any).eventTypes !== undefined) {
+            (manifest.executions[executionIndex] as any).eventTypes = (updates as any).eventTypes;
+          }
           manifest.lastUpdated = Date.now();
           await this.saveManifest(manifest);
         }

@@ -2280,10 +2280,12 @@ export const useSimulationStore = create<SimulationState>((rawSet, get) => {
       set({ currentTemplate: template });
 
       // Load the clean scenario FIRST (always without group nodes)
-      await get().loadScenario(template.scenario);
+      if (template.scenario) {
+        await get().loadScenario(template.scenario);
+      }
 
       // THEN re-apply grouping if it was enabled when saved
-      if (template.scenario.groups?.activeFilters && template.scenario.groups.activeFilters.length > 0) {
+      if (template.scenario?.groups?.activeFilters && template.scenario.groups.activeFilters.length > 0) {
         console.log(`🔄 Restoring grouping state for tags:`, template.scenario.groups.activeFilters);
 
         // Import the grouping utility function
@@ -2496,6 +2498,8 @@ export const useSimulationStore = create<SimulationState>((rawSet, get) => {
       };
 
       const updatedTemplate = await templateService.updateTemplate(state.currentTemplate.id, {
+        // CRITICAL: Preserve the name field (prevent overwriting to null)
+        name: state.currentTemplate.name,
         scenario: scenarioWithoutGroupNodes,
         // Add execution state to template
         executionState: completeState,

@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity, Coins } from "lucide-react";
+import { Search, Plus, Filter, Eye, Edit, Trash2, User, FileText, Activity, Coins, CheckCircle, AlertCircle } from "lucide-react";
 import { createUserClaimsService } from "@/lib/services/claimsService";
 import { useSession } from "next-auth/react";
 import {
@@ -36,10 +36,11 @@ import { CompactSinkViewer } from "./CompactSinkViewer";
 import { JSONViewerModal } from "./JSONViewerModal";
 import { ClaimEditModal } from "./ClaimEditModal";
 import { TokenizeClaimModal } from "./TokenizeClaimModal";
+import { TokenizationStatusModal } from "./TokenizationStatusModal";
 import { templateService } from "@/lib/template-service";
 import { engineAPIService } from "@/lib/engine-api-service";
 import { computeClaimSyncStatus } from "@/lib/services/claimSyncService";
-import { appendEventsOnChain } from "@/lib/services/claimContractService";
+import { appendEventsOnChain, getClaimState } from "@/lib/services/claimContractService";
 
 interface ClaimsRegistryState {
   claims: Claim[];
@@ -62,8 +63,11 @@ interface ClaimsRegistryState {
   editClaim: Claim | null;
   showTokenizeModal: boolean;
   tokenizeClaim: Claim | null;
+  showOnChainStatusModal: boolean;
+  onChainStatusClaim: Claim | null;
   aggregatedValues: Record<string, any>; // Cache for aggregated values by claim ID
   loadingAggregations: Record<string, boolean>; // Track loading state per claim
+  onChainAggregateValues: Record<string, string>; // Cache for on-chain aggregate values by claim ID
 }
 
 export function ClaimsRegistry() {
@@ -90,8 +94,11 @@ export function ClaimsRegistry() {
     editClaim: null,
     showTokenizeModal: false,
     tokenizeClaim: null,
+    showOnChainStatusModal: false,
+    onChainStatusClaim: null,
     aggregatedValues: {},
     loadingAggregations: {},
+    onChainAggregateValues: {},
   });
 
   // Initialize user claims service when session is available
@@ -126,7 +133,19 @@ export function ClaimsRegistry() {
 
   // Load aggregated value for a single claim
   const loadAggregatedValue = useCallback(async (claim: Claim) => {
+    console.log(`🔍 loadAggregatedValue called for claim ${claim.id}`, {
+      hasTemplateId: !!claim.templateId,
+      hasExecutionId: !!claim.executionId,
+      hasSinks: !!claim.formula?.sinks,
+      sinksLength: claim.formula?.sinks?.length,
+      templateId: claim.templateId,
+      executionId: claim.executionId,
+      sinks: claim.formula?.sinks,
+      aggregationFormula: claim.aggregationFormula
+    });
+
     if (!claim.templateId || !claim.executionId || !claim.formula?.sinks || claim.formula.sinks.length === 0) {
+      console.warn(`⚠️ Skipping aggregation for claim ${claim.id} - missing required data`);
       return; // Can't compute aggregation without these
     }
 
@@ -159,13 +178,19 @@ export function ClaimsRegistry() {
         customExpression
       );
 
+      console.log(`✅ Loaded aggregation for claim ${claim.id}:`, {
+        aggregatedValue: aggregationData.aggregatedValue,
+        totalEvents: aggregationData.totalEvents,
+        fullResponse: aggregationData
+      });
+
       setState(prev => ({
         ...prev,
         aggregatedValues: { ...prev.aggregatedValues, [claim.id]: aggregationData.aggregatedValue },
         loadingAggregations: { ...prev.loadingAggregations, [claim.id]: false }
       }));
 
-      console.log(`✅ Loaded aggregation for claim ${claim.id}:`, aggregationData.aggregatedValue);
+      console.log(`✅ State updated for claim ${claim.id}:`, aggregationData.aggregatedValue);
     } catch (error) {
       console.error(`❌ Failed to load aggregation for claim ${claim.id}:`, error);
       setState(prev => ({
@@ -173,6 +198,26 @@ export function ClaimsRegistry() {
         aggregatedValues: { ...prev.aggregatedValues, [claim.id]: 'Error' },
         loadingAggregations: { ...prev.loadingAggregations, [claim.id]: false }
       }));
+    }
+  }, []);
+
+  // Load on-chain aggregate value for tokenized claims
+  const loadOnChainAggregateValue = useCallback(async (claim: Claim) => {
+    const tokenId = claim.tokenization?.onChain?.tokenId;
+    if (!tokenId) return;
+
+    try {
+      const onChainState = await getClaimState(BigInt(tokenId));
+      const onChainAggValue = onChainState.aggregateValue;
+
+      setState(prev => ({
+        ...prev,
+        onChainAggregateValues: { ...prev.onChainAggregateValues, [claim.id]: onChainAggValue }
+      }));
+
+      console.log(`✅ Loaded on-chain aggregate for claim ${claim.id}:`, onChainAggValue);
+    } catch (error) {
+      console.error(`❌ Failed to load on-chain aggregate for claim ${claim.id}:`, error);
     }
   }, []);
 
@@ -209,6 +254,10 @@ export function ClaimsRegistry() {
       for (const claim of result.claims) {
         if (claim.templateId && claim.executionId && claim.formula?.sinks && claim.formula.sinks.length > 0) {
           loadAggregatedValue(claim);
+        }
+        // Load on-chain aggregate value for tokenized claims
+        if (claim.tokenization?.onChain?.tokenId) {
+          loadOnChainAggregateValue(claim);
         }
       }
     } catch (error) {
@@ -607,7 +656,6 @@ export function ClaimsRegistry() {
                 <TableRow>
                   <TableHead>ID</TableHead>
                   <TableHead>Title</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead>Sinks</TableHead>
                   <TableHead>Aggregated Value</TableHead>
                   <TableHead>Formula</TableHead>
@@ -628,11 +676,6 @@ export function ClaimsRegistry() {
                           {claim.description}
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(claim.status)}>
-                        {claim.status.replace("_", " ").toUpperCase()}
-                      </Badge>
                     </TableCell>
                     <TableCell>
                       {claim.formula?.sinks && claim.formula.sinks.length > 0 ? (
@@ -669,12 +712,42 @@ export function ClaimsRegistry() {
                           return <Badge variant="destructive" className="text-xs">Error</Badge>;
                         }
 
+                        // Check sync status if claim is tokenized
+                        const isTokenized = !!claim.tokenization?.onChain;
+                        // Use real on-chain value from blockchain, not cached database value
+                        const onChainAggValue = state.onChainAggregateValues[claim.id];
+                        const localAggValue = typeof aggregatedValue === 'object'
+                          ? JSON.stringify(aggregatedValue)
+                          : String(aggregatedValue);
+                        const isSynced = isTokenized && onChainAggValue === localAggValue;
+                        const isOutOfSync = isTokenized && onChainAggValue && onChainAggValue !== localAggValue;
+
+                        // Debug logging for sync status
+                        if (isTokenized && claim.id === 'claim-1763223933843-y4mrll') {
+                          console.log('🔍 Table Sync Check for Claim 2:', {
+                            claimId: claim.id,
+                            onChainAggValue,
+                            localAggValue,
+                            isSynced,
+                            isOutOfSync,
+                            match: onChainAggValue === localAggValue,
+                            onChainType: typeof onChainAggValue,
+                            localType: typeof localAggValue,
+                          });
+                        }
+
                         // Handle objects - stringify them properly
                         if (typeof aggregatedValue === 'object') {
                           const jsonStr = JSON.stringify(aggregatedValue, null, 2);
                           const preview = jsonStr.slice(0, 30);
                           return (
                             <div className="flex items-center gap-1">
+                              {isTokenized && isSynced && (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              )}
+                              {isTokenized && isOutOfSync && (
+                                <AlertCircle className="w-4 h-4 text-yellow-600" />
+                              )}
                               <span className="font-mono text-xs" title={jsonStr}>
                                 {preview}{jsonStr.length > 30 ? '...' : ''}
                               </span>
@@ -700,9 +773,17 @@ export function ClaimsRegistry() {
 
                         // Handle primitives
                         return (
-                          <span className="font-mono text-sm font-semibold text-blue-600">
-                            {String(aggregatedValue)}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            {isTokenized && isSynced && (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            )}
+                            {isTokenized && isOutOfSync && (
+                              <AlertCircle className="w-4 h-4 text-yellow-600" />
+                            )}
+                            <span className="font-mono text-sm font-semibold text-blue-600">
+                              {String(aggregatedValue)}
+                            </span>
+                          </div>
                         );
                       })()}
                     </TableCell>
@@ -730,58 +811,21 @@ export function ClaimsRegistry() {
                           );
                         }
 
-                        const onChain = claim.tokenization.onChain;
-                        const { blockchain, tokenId, blockExplorerUrl } = onChain;
-
-                        // Get aggregated value from cache if available
-                        const aggregatedValue = state.aggregatedValues[claim.id];
-
-                        // Compute sync status if we have event counts
-                        // Use aggregated event count as local count (this is approximate)
-                        const localEventCount = aggregatedValue?.eventCount || onChain.onChainSinkEventCount;
-                        const eventsBehind = Math.max(0, localEventCount - onChain.onChainSinkEventCount);
-
-                        const isSynced = eventsBehind === 0;
-
+                        // Claim is tokenized - show status badge that opens modal
                         return (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1">
-                              {isSynced ? (
-                                <Badge variant="default" className="text-xs bg-gray-100 text-black border border-gray-400">
-                                  ✅ Synced
-                                </Badge>
-                              ) : (
-                                <Badge variant="default" className="text-xs bg-gray-300 text-black">
-                                  ⚠️ {eventsBehind} Behind
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-600 font-mono">
-                              {blockchain.toUpperCase()} #{tokenId}
-                            </div>
-                            <div className="flex gap-1">
-                              {blockExplorerUrl && (
-                                <a
-                                  href={blockExplorerUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-black hover:underline"
-                                >
-                                  Explorer →
-                                </a>
-                              )}
-                              {!isSynced && eventsBehind > 0 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleUpdateClaimOnChain(claim)}
-                                  className="text-xs h-6 px-2"
-                                >
-                                  Update ↑{eventsBehind}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setState(prev => ({
+                              ...prev,
+                              showOnChainStatusModal: true,
+                              onChainStatusClaim: claim
+                            }))}
+                            className="text-xs"
+                          >
+                            <Coins className="w-3 h-3 mr-1" />
+                            View Status
+                          </Button>
                         );
                       })()}
                     </TableCell>
@@ -898,6 +942,21 @@ export function ClaimsRegistry() {
           tokenizeClaim: null
         }))}
         onTokenized={handleClaimTokenized}
+      />
+
+      <TokenizationStatusModal
+        claim={state.onChainStatusClaim}
+        isOpen={state.showOnChainStatusModal}
+        onClose={() => setState(prev => ({
+          ...prev,
+          showOnChainStatusModal: false,
+          onChainStatusClaim: null
+        }))}
+        localAggregatedValue={state.onChainStatusClaim ? state.aggregatedValues[state.onChainStatusClaim.id] : undefined}
+        onSyncComplete={() => {
+          // Reload claims after sync to update the UI
+          loadClaims();
+        }}
       />
     </div>
   );

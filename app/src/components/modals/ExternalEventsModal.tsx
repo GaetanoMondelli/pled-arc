@@ -19,6 +19,9 @@ import { ExternalEventCreator } from "@/app/template-editor/components/ExternalE
 function ExpandableExternalEvent({ event, onDelete, onReplay }: { event: any; onDelete: (id: string) => void; onReplay: (event: any) => void; }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Unwrap event if it's wrapped in simulation format {timestamp, value}
+  const actualEvent = event.value || event;
+
   return (
     <div className="border border-gray-200 bg-white rounded">
       <div className="flex items-center justify-between text-sm px-3 py-2">
@@ -34,24 +37,24 @@ function ExpandableExternalEvent({ event, onDelete, onReplay }: { event: any; on
               <ChevronRight className="w-3 h-3" />
             )}
           </button>
-          <span className="font-mono text-gray-600 text-xs font-medium">{event.id}</span>
-          <Badge variant="outline" className="text-xs">{event.type}</Badge>
-          <span className="text-gray-600 text-xs">{event.source}</span>
-          {event.targetDataSourceId && (
-            <span className="text-blue-600 text-xs font-mono">→ {event.targetDataSourceId}</span>
+          <span className="font-mono text-gray-600 text-xs font-medium">{actualEvent.id}</span>
+          <Badge variant="outline" className="text-xs">{actualEvent.type}</Badge>
+          <span className="text-gray-600 text-xs">{actualEvent.source}</span>
+          {actualEvent.targetDataSourceId && (
+            <span className="text-blue-600 text-xs font-mono">→ {actualEvent.targetDataSourceId}</span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 text-xs text-gray-500">
             <Clock className="w-3 h-3" />
-            <span className="font-mono">{new Date(event.timestamp).toLocaleTimeString()}</span>
+            <span className="font-mono">{new Date(event.timestamp || actualEvent.timestamp).toLocaleTimeString()}</span>
           </div>
 
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onReplay(event)}
+            onClick={() => onReplay(actualEvent)}
             className="h-6 px-2 text-blue-600 hover:text-blue-700"
             title="Replay this event"
           >
@@ -61,7 +64,7 @@ function ExpandableExternalEvent({ event, onDelete, onReplay }: { event: any; on
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onDelete(event.id)}
+            onClick={() => onDelete(actualEvent.id)}
             className="h-6 px-2 text-red-600 hover:text-red-700"
             title="Delete this event"
           >
@@ -77,12 +80,12 @@ function ExpandableExternalEvent({ event, onDelete, onReplay }: { event: any; on
             <div>
               <h4 className="font-semibold text-gray-700 mb-2">Event Details</h4>
               <div className="space-y-1">
-                <div><span className="font-medium">ID:</span> <span className="font-mono">{event.id}</span></div>
-                <div><span className="font-medium">Type:</span> <span className="font-mono">{event.type}</span></div>
-                <div><span className="font-medium">Source:</span> <span className="font-mono">{event.source}</span></div>
-                <div><span className="font-medium">Timestamp:</span> <span className="font-mono">{new Date(event.timestamp).toISOString()}</span></div>
-                {event.targetDataSourceId && (
-                  <div><span className="font-medium">Target:</span> <span className="font-mono">{event.targetDataSourceId}</span></div>
+                <div><span className="font-medium">ID:</span> <span className="font-mono">{actualEvent.id}</span></div>
+                <div><span className="font-medium">Type:</span> <span className="font-mono">{actualEvent.type}</span></div>
+                <div><span className="font-medium">Source:</span> <span className="font-mono">{actualEvent.source}</span></div>
+                <div><span className="font-medium">Timestamp:</span> <span className="font-mono">{new Date(event.timestamp || actualEvent.timestamp).toISOString()}</span></div>
+                {actualEvent.targetDataSourceId && (
+                  <div><span className="font-medium">Target:</span> <span className="font-mono">{actualEvent.targetDataSourceId}</span></div>
                 )}
               </div>
             </div>
@@ -90,7 +93,7 @@ function ExpandableExternalEvent({ event, onDelete, onReplay }: { event: any; on
             <div>
               <h4 className="font-semibold text-gray-700 mb-2">Event Data</h4>
               <div className="p-2 bg-white rounded border font-mono text-xs overflow-x-auto max-h-32">
-                <pre>{JSON.stringify(event.data, null, 2)}</pre>
+                <pre>{JSON.stringify(actualEvent.data, null, 2)}</pre>
               </div>
             </div>
           </div>
@@ -119,15 +122,8 @@ export function ExternalEventsModal({ isOpen, onClose, externalQueue, engine }: 
 
   // Get external events from queue
   const externalEvents = useMemo(() => {
-    if (!externalQueue) {
-      console.log('🔄 ExternalEventsModal: No external queue provided');
-      return [];
-    }
-    console.log('🔄 ExternalEventsModal: Queue instance ID:', externalQueue.constructor.name, externalQueue);
-    const events = externalQueue.getAllEvents() || [];
-    console.log('🔄 ExternalEventsModal: Refreshing external events list:', events.length, 'events');
-    console.log('🔄 ExternalEventsModal: Events detail:', events);
-    return events;
+    if (!externalQueue) return [];
+    return externalQueue.getAllEvents() || [];
   }, [externalQueue, isOpen, refreshTrigger]); // Re-fetch when modal opens OR refreshTrigger changes
 
   // Get available data sources for smart suggestions
@@ -368,7 +364,7 @@ export function ExternalEventsModal({ isOpen, onClose, externalQueue, engine }: 
               <div className="space-y-2">
                 {externalEvents.map((event: any, idx: number) => (
                   <ExpandableExternalEvent
-                    key={event.id}
+                    key={event.id || `event-${idx}-${event.timestamp || Date.now()}`}
                     event={event}
                     onDelete={handleDeleteEvent}
                     onReplay={handleReplayEvent}

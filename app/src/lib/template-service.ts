@@ -58,6 +58,7 @@ class TemplateService {
     description?: string;
     scenario?: Scenario;
     referenceDoc?: string;
+    [key: string]: any; // Allow additional fields like executionState, sync, etc.
   }): Promise<TemplateDocument> {
     const response = await fetch(`${this.baseUrl}/templates/${templateId}`, {
       method: 'PUT',

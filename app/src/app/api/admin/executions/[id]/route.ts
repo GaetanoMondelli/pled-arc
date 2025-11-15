@@ -6,14 +6,15 @@ export const dynamic = 'force-dynamic';
 // GET /api/admin/executions/[id] - Get a specific execution
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const execution = await pledStorageService.getExecution(params.id);
+    const { id } = await params;
+    const execution = await pledStorageService.getExecution(id);
 
     if (!execution) {
       return NextResponse.json(
-        { error: 'Execution not found', details: `Execution ${params.id} does not exist` },
+        { error: 'Execution not found', details: `Execution ${id} does not exist` },
         { status: 404 }
       );
     }
@@ -31,33 +32,16 @@ export async function GET(
 // PUT /api/admin/executions/[id] - Update an execution
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
-    const {
-      name,
-      description,
-      nodeStates,
-      currentTime,
-      eventCounter,
-      globalActivityLog,
-      nodeActivityLogs,
-      isCompleted
-    } = body;
 
-    await pledStorageService.updateExecution(params.id, {
-      name,
-      description,
-      nodeStates,
-      currentTime,
-      eventCounter,
-      globalActivityLog,
-      nodeActivityLogs,
-      isCompleted
-    });
+    // Update execution with provided fields
+    await pledStorageService.updateExecution(id, body);
 
-    const execution = await pledStorageService.getExecution(params.id);
+    const execution = await pledStorageService.getExecution(id);
     return NextResponse.json({ execution });
   } catch (error: any) {
     console.error('Error updating execution:', error);
@@ -70,11 +54,12 @@ export async function PUT(
 
 // DELETE /api/admin/executions/[id] - Delete an execution
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await pledStorageService.deleteExecution(params.id);
+    const { id } = await params;
+    await pledStorageService.deleteExecution(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error deleting execution:', error);
