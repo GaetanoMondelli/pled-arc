@@ -1,0 +1,259 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/v3-template.json",
+  "title": "V3 Template Schema",
+  "description": "JSON Schema for V3 simulation templates used by DocuSign Unlocked (matches V3TemplateSchema in core/schemas/v3-schema.ts)",
+  "type": "object",
+  "required": ["version", "nodes"],
+  "properties": {
+    "version": { "type": "string", "const": "3.0" },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/node" }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "position": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "interface": {
+      "type": "object",
+      "required": ["type", "requiredFields"],
+      "properties": {
+        "type": { "type": "string", "enum": ["SimpleValue", "AggregationResult", "TransformationResult", "Any"] },
+        "requiredFields": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "generationConfig": {
+      "type": "object",
+      "required": ["type", "valueMin", "valueMax"],
+      "properties": {
+        "type": { "type": "string", "enum": ["random", "sequence", "constant"] },
+        "valueMin": { "type": "number" },
+        "valueMax": { "type": "number" },
+        "hardcodedValue": {},
+        "hardcodedValues": { "type": "array", "items": {} }
+      },
+      "additionalProperties": false
+    },
+    "aggregationTrigger": {
+      "type": "object",
+      "required": ["type", "window"],
+      "properties": {
+        "type": { "type": "string", "enum": ["time", "count", "threshold"] },
+        "window": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "aggregationConfig": {
+      "type": "object",
+      "required": ["method", "formula", "trigger"],
+      "properties": {
+        "method": { "type": "string", "enum": ["sum", "average", "count", "first", "last", "min", "max"] },
+        "formula": { "type": "string" },
+        "trigger": { "$ref": "#/definitions/aggregationTrigger" }
+      },
+      "additionalProperties": false
+    },
+    "transformationConfig": {
+      "type": "object",
+      "required": ["formula", "fieldMapping"],
+      "properties": {
+        "formula": { "type": "string" },
+        "fieldMapping": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "required": ["name", "interface", "required"],
+      "properties": {
+        "name": { "type": "string" },
+        "nodeId": { "type": "string" },
+        "sourceOutputName": { "type": "string" },
+        "interface": { "$ref": "#/definitions/interface" },
+        "alias": { "type": "string" },
+        "required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "required": ["name", "destinationNodeId", "destinationInputName", "interface"],
+      "properties": {
+        "name": { "type": "string" },
+        "destinationNodeId": { "type": "string" },
+        "destinationInputName": { "type": "string" },
+        "interface": { "$ref": "#/definitions/interface" },
+        "transformation": { "$ref": "#/definitions/transformationConfig" }
+      },
+      "additionalProperties": false
+    },
+    "baseNode": {
+      "type": "object",
+      "required": ["nodeId", "displayName", "position", "type"],
+      "properties": {
+        "nodeId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+        "displayName": { "type": "string" },
+        "position": { "$ref": "#/definitions/position" },
+        "type": { "type": "string", "enum": ["DataSource", "Queue", "ProcessNode", "FSMProcessNode", "Sink", "Multiplexer"] }
+      },
+      "additionalProperties": true
+    },
+
+    "dataSourceNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "DataSource" },
+          "interval": { "type": "number", "minimum": 0.1 },
+          "outputs": { "type": "array", "items": { "$ref": "#/definitions/output" } },
+          "generation": { "$ref": "#/definitions/generationConfig" }
+        },
+        "required": ["type", "interval", "outputs", "generation"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "queueNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "Queue" },
+          "inputs": { "type": "array", "items": { "$ref": "#/definitions/input" } },
+          "outputs": { "type": "array", "items": { "$ref": "#/definitions/output" } },
+          "aggregation": { "$ref": "#/definitions/aggregationConfig" },
+          "capacity": { "type": "number", "minimum": 1 }
+        },
+        "required": ["type", "inputs", "outputs", "aggregation"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "processNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "ProcessNode" },
+          "inputs": { "type": "array", "items": { "$ref": "#/definitions/input" } },
+          "outputs": { "type": "array", "items": { "$ref": "#/definitions/output" } }
+        },
+        "required": ["type", "inputs", "outputs"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "fsmAction": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["emit", "log", "set_variable", "increment", "decrement"] },
+        "target": { "type": "string" },
+        "value": {},
+        "formula": { "type": "string" }
+      },
+      "required": ["action"],
+      "additionalProperties": false
+    },
+
+    "fsmState": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "isInitial": { "type": "boolean" },
+        "isFinal": { "type": "boolean" },
+        "onEntry": { "type": "array", "items": { "$ref": "#/definitions/fsmAction" } },
+        "onExit": { "type": "array", "items": { "$ref": "#/definitions/fsmAction" } }
+      },
+      "additionalProperties": false
+    },
+
+    "fsmTransition": {
+      "type": "object",
+      "required": ["from", "to", "trigger"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "trigger": { "type": "string", "enum": ["token_received", "timer", "condition", "emission_complete", "manual"] },
+        "condition": { "type": "string" },
+        "guard": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "fsmDefinition": {
+      "type": "object",
+      "required": ["states", "transitions"],
+      "properties": {
+        "states": { "type": "array", "items": { "$ref": "#/definitions/fsmState" } },
+        "transitions": { "type": "array", "items": { "$ref": "#/definitions/fsmTransition" } },
+        "variables": { "type": "object", "additionalProperties": true }
+      },
+      "additionalProperties": false
+    },
+
+    "fsmProcessNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "FSMProcessNode" },
+          "inputs": { "type": "array", "items": { "$ref": "#/definitions/input" } },
+          "outputs": { "type": "array", "items": { "$ref": "#/definitions/output" } },
+          "fsm": { "$ref": "#/definitions/fsmDefinition" },
+          "fsl": { "type": "string" }
+        },
+        "required": ["type", "inputs", "outputs", "fsm"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "sinkNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "Sink" },
+          "inputs": { "type": "array", "items": { "$ref": "#/definitions/input" } }
+        },
+        "required": ["type", "inputs"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "multiplexerConfig": {
+      "type": "object",
+      "required": ["strategy"],
+      "properties": {
+        "strategy": { "type": "string", "enum": ["round_robin", "random", "weighted", "conditional"] },
+        "weights": { "type": "array", "items": { "type": "number" } },
+        "conditions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+
+    "multiplexerNode": {
+      "allOf": [ { "$ref": "#/definitions/baseNode" }, {
+        "type": "object",
+        "properties": {
+          "type": { "const": "Multiplexer" },
+          "inputs": { "type": "array", "items": { "$ref": "#/definitions/input" } },
+          "outputs": { "type": "array", "items": { "$ref": "#/definitions/output" } },
+          "multiplexing": { "$ref": "#/definitions/multiplexerConfig" }
+        },
+        "required": ["type", "inputs", "outputs", "multiplexing"],
+        "additionalProperties": false
+      } ]
+    },
+
+    "node": {
+      "oneOf": [ { "$ref": "#/definitions/dataSourceNode" }, { "$ref": "#/definitions/queueNode" }, { "$ref": "#/definitions/processNode" }, { "$ref": "#/definitions/fsmProcessNode" }, { "$ref": "#/definitions/sinkNode" }, { "$ref": "#/definitions/multiplexerNode" } ]
+    }
+  }
+}
