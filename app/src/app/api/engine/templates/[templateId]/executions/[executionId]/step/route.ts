@@ -48,12 +48,21 @@ export async function GET(
     }
     const templateData = await templateResponse.json();
 
-    // 2. Load execution
-    const executionResponse = await fetch(`${baseUrl}/api/admin/executions/${executionId}`);
-    if (!executionResponse.ok) {
-      throw new Error(`Execution ${executionId} not found`);
+    // 2. Load execution (optional - use 'none' or 'temp' to skip)
+    let externalEvents: any[] = [];
+
+    if (executionId !== 'none' && executionId !== 'temp') {
+      const executionResponse = await fetch(`${baseUrl}/api/admin/executions/${executionId}`);
+      if (!executionResponse.ok) {
+        throw new Error(`Execution ${executionId} not found`);
+      }
+      const executionData = await executionResponse.json();
+
+      // Support both 'externalEvents' and 'events' fields for compatibility
+      externalEvents = executionData.execution.externalEvents || executionData.execution.events || [];
+    } else {
+      console.log(`⚠️ No execution loaded - using empty external events queue`);
     }
-    const executionData = await executionResponse.json();
 
     // 3. Initialize engine
     const engine = new SimulationEngine();
@@ -62,9 +71,6 @@ export async function GET(
     // 4. Load external events
     const externalQueue = new ExternalEventQueue();
     externalQueue.setSimulationEngine(engine);
-
-    // Support both 'externalEvents' and 'events' fields for compatibility
-    const externalEvents = executionData.execution.externalEvents || executionData.execution.events || [];
 
     if (externalEvents.length > 0) {
       for (const event of externalEvents) {

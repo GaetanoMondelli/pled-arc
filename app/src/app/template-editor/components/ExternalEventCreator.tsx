@@ -53,6 +53,8 @@ export function ExternalEventCreator({ externalQueue, engine, onEventCreated }: 
 
     try {
       const scenarioInfo = engine.scenario.getScenarioInfo();
+      console.log('🔍 DEBUG scenarioInfo:', scenarioInfo);
+      console.log('🔍 DEBUG scenarioInfo.nodes:', scenarioInfo?.nodes);
       if (!scenarioInfo?.nodes) {
         console.log('⚠️ No nodes found in engine scenario');
         return [];
