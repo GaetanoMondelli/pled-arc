@@ -500,6 +500,7 @@ export function ClaimsRegistry() {
                   <TableHead>Formula</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Last Updated</TableHead>
+                  <TableHead>Tokenization</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -598,6 +599,46 @@ export function ClaimsRegistry() {
                     <TableCell>{claim.owner || "Unassigned"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(claim.lastUpdated)}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        // Check if claim is tokenized
+                        if (!claim.tokenization?.onChain) {
+                          return (
+                            <Badge variant="outline" className="text-xs">
+                              Not Tokenized
+                            </Badge>
+                          );
+                        }
+
+                        const onChain = claim.tokenization.onChain;
+                        const { blockchain, tokenId, blockExplorerUrl } = onChain;
+
+                        // TODO: Get local event counts from execution
+                        // For now, show just the on-chain status
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                                ✅ On-Chain
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground font-mono">
+                              {blockchain.toUpperCase()} #{tokenId}
+                            </div>
+                            {blockExplorerUrl && (
+                              <a
+                                href={blockExplorerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                View on Explorer →
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">

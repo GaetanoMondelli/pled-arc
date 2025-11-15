@@ -382,9 +382,24 @@ export function CompactSinkViewer({ claim, onClose }: CompactSinkViewerProps) {
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {claim.templateId && claim.executionId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    window.open(`/template-editor/${claim.templateId}?execution=${claim.executionId}`, '_blank');
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Bug className="w-4 h-4" />
+                  Open in Debugger
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
 

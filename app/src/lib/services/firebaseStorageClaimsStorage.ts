@@ -2,7 +2,7 @@
  * Firebase Storage Claims Storage
  *
  * Uses Firebase Storage (like templates/executions) instead of Firestore
- * Saves claims as JSON files in gs://quantmondelli.appspot.com/pled/claims/
+ * Saves claims as JSON files in gs://quantmondelli.appspot.com/arcpled/claims/
  */
 
 import { ClaimsStorage } from "./claimsService";
@@ -24,7 +24,7 @@ export class FirebaseStorageClaimsStorage implements ClaimsStorage {
 
   constructor(userId: string) {
     this.userId = this.sanitizeUserId(userId);
-    this.basePath = `pled/claims/${this.userId}`;
+    this.basePath = `arcpled/claims/${this.userId}`;
   }
 
   private sanitizeUserId(userId: string): string {
