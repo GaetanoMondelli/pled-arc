@@ -16,6 +16,7 @@ import { ExternalEventsModal } from "@/components/modals/ExternalEventsModal";
 import StateInspectorPanel from "@/components/ui/state-inspector-panel";
 import { useToast } from "@/hooks/use-toast";
 import { useSimulationStore } from "@/lib/stores/legacy/simulationStore";
+import { useSimulationStore as useActualSimulationStore } from "@/stores/simulationStore";
 
 // Import hooks
 import {
@@ -667,7 +668,19 @@ export default function TemplateEditorPage() {
       }
 
       const data = await response.json();
-      // The architecture API returns summary, not documentation
+
+      // After updating, fetch the updated document content
+      const getResponse = await fetch('/api/architecture/update-from-workflow', {
+        method: 'GET'
+      });
+
+      if (getResponse.ok) {
+        const getResult = await getResponse.json();
+        console.log('Retrieved updated document, length:', getResult.content?.length);
+        return getResult.content || data.summary || 'Reference documentation updated successfully';
+      }
+
+      // Fallback to summary if GET fails
       return data.summary || 'Reference documentation updated successfully';
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -919,7 +932,7 @@ export default function TemplateEditorPage() {
           onToggleVisibility={panel.togglePanelVisibility}
           onMouseDown={panel.handleMouseDown}
           onScenarioUpdate={handleScenarioUpdate}
-          loadScenario={useSimulationStore.getState().loadScenario}
+          loadScenario={useActualSimulationStore.getState().loadScenario}
           onReferenceDocUpdate={handleReferenceDocUpdate}
           onGenerateReferenceDoc={handleGenerateReferenceDoc}
           onUpdateReferenceDoc={handleUpdateReferenceDoc}
