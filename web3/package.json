@@ -14,7 +14,9 @@
     "viem": "^2.39.0"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.17.3"
+    "@circle-fin/developer-controlled-wallets": "^9.3.0",
+    "@google-cloud/storage": "^7.17.3",
+    "dotenv": "^17.2.3"
   },
   "scripts": {
     "node": "npx hardhat node",
