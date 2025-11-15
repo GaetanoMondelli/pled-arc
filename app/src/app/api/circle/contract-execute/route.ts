@@ -17,6 +17,12 @@ export async function POST(request: NextRequest) {
     const { getCircleClient } = await import('@/lib/circle-wallet');
     const client = getCircleClient();
 
+    console.log('🔐 [Circle SDK] Executing contract...');
+    console.log('  Wallet ID:', walletId);
+    console.log('  Contract:', contractAddress);
+    console.log('  Function:', abiFunctionSignature);
+    console.log('  Parameters:', JSON.stringify(abiParameters));
+
     // Execute contract transaction with proper fee structure
     const transaction = await client.createContractExecutionTransaction({
       walletId,
@@ -31,6 +37,11 @@ export async function POST(request: NextRequest) {
       },
       idempotencyKey: crypto.randomUUID()
     });
+
+    console.log('✅ [Circle SDK] Transaction created:', transaction.data?.id);
+    console.log('  State:', transaction.data?.state);
+    console.log('  TxHash:', transaction.data?.txHash || 'Pending...');
+    console.log('  Full response:', JSON.stringify(transaction.data, null, 2));
 
     return NextResponse.json({
       success: true,
