@@ -37,6 +37,9 @@ export interface Claim {
   aggregationFormula?: AggregationFormula; // How to aggregate sink data
   lastSinkUpdate?: Date;             // When sink data was last processed
   sinks?: string[];                  // Sink node IDs for this claim
+
+  // Tokenization & Verification Fields
+  tokenization?: ClaimTokenization;  // Merkle tree proofs and hashes for on-chain verification
 }
 
 /**
