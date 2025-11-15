@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Workflow Agent Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-container {
+            width: 95%;
+            max-width: 1200px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 12px;
+            max-width: 80%;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .agent-message {
+            background: white;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .scenario-preview {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f8ff;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .nodes-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .node-item {
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 12px;
+        }
+
+        .node-type {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 50px;
+            max-height: 150px;
+            font-family: inherit;
+        }
+
+        .message-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .send-button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .live-updates {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            display: none;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 15px;
+            font-style: italic;
+            color: #666;
+        }
+
+        .error {
+            background: #ffebee !important;
+            border-left-color: #f44336 !important;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <h1>🚀 Enhanced Workflow Agent</h1>
+            <p>Connected to Cloud Run - Real-time Updates</p>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">Connected</span>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="message agent-message">
+                <strong>🤖 Workflow Agent:</strong> Ready to create workflows! Try saying something like:
+                <ul style="margin-top: 10px; padding-left: 20px;">
+                    <li>"Create a data source connected to a processor and sink"</li>
+                    <li>"Add a multiplexer that routes to two different sinks"</li>
+                    <li>"Create an FSM with pending, processing, completed states"</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            🤖 Agent is thinking...
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <textarea
+                    id="message-input"
+                    class="message-input"
+                    placeholder="Describe the workflow you want to create..."
+                    rows="2"
+                ></textarea>
+                <button id="send-button" class="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="live-updates" id="live-updates"></div>
+
+    <script>
+        const CLOUD_RUN_URL = 'https://workflow-agent-319413928411.us-central1.run.app';
+        const CHAT_ENDPOINT = `${CLOUD_RUN_URL}/chat`;
+        const SSE_ENDPOINT = `${CLOUD_RUN_URL}/api/stream`;
+
+        let currentScenario = null;
+        let conversationHistory = [];
+
+        // UI Elements
+        const messagesContainer = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const statusText = document.getElementById('status-text');
+        const liveUpdates = document.getElementById('live-updates');
+
+        // Setup SSE for real-time updates
+        function setupSSE() {
+            const eventSource = new EventSource(SSE_ENDPOINT);
+
+            eventSource.onopen = () => {
+                statusText.textContent = 'Connected';
+                console.log('✅ SSE Connected to Cloud Run');
+            };
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    showLiveUpdate(`🔄 ${data.step}: ${data.message}`);
+                } catch (e) {
+                    console.log('SSE update:', event.data);
+                }
+            };
+
+            eventSource.onerror = () => {
+                statusText.textContent = 'Reconnecting...';
+                console.log('❌ SSE connection error');
+            };
+        }
+
+        function showLiveUpdate(message) {
+            liveUpdates.textContent = message;
+            liveUpdates.style.display = 'block';
+            setTimeout(() => {
+                liveUpdates.style.display = 'none';
+            }, 3000);
+        }
+
+        function addMessage(content, isUser = false, scenario = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'agent-message'}`;
+
+            let messageContent = `<strong>${isUser ? '👤 You:' : '🤖 Agent:'}</strong> ${content}`;
+
+            if (scenario && scenario.nodes) {
+                messageContent += `
+                    <div class="scenario-preview">
+                        <strong>📊 Created ${scenario.nodes.length} nodes:</strong>
+                        <div class="nodes-list">
+                            ${scenario.nodes.map(node => `
+                                <div class="node-item">
+                                    <div class="node-type">${node.type}</div>
+                                    <div>${node.displayName}</div>
+                                    <div style="font-size: 10px; color: #666;">
+                                        Position: (${node.position.x}, ${node.position.y})
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ${scenario.edges ? `<div style="margin-top: 8px; font-size: 12px;">🔗 ${scenario.edges.length} connections</div>` : ''}
+                    </div>
+                `;
+            }
+
+            messageDiv.innerHTML = messageContent;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, true);
+            conversationHistory.push({ role: 'user', content: message });
+
+            // Clear input and show typing
+            messageInput.value = '';
+            sendButton.disabled = true;
+            typingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetch(CHAT_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        scenario: currentScenario,
+                        history: conversationHistory.slice(-10) // Last 10 messages
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update current scenario
+                    if (data.scenario) {
+                        currentScenario = data.scenario;
+                    }
+
+                    // Add agent response
+                    addMessage(data.message, false, data.scenario);
+                    conversationHistory.push({ role: 'assistant', content: data.message });
+
+                    showLiveUpdate(`✅ Created workflow with ${data.scenario?.nodes?.length || 0} nodes`);
+                } else {
+                    addMessage(`❌ Error: ${data.error || 'Unknown error'}`, false);
+                }
+
+            } catch (error) {
+                console.error('ERROR:', error);
+                addMessage(`❌ Connection Error: ${error.message}`, false);
+                statusText.textContent = 'Connection Error';
+            } finally {
+                typingIndicator.style.display = 'none';
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Initialize
+        setupSSE();
+        messageInput.focus();
+
+        // Test connection on load
+        fetch(`${CLOUD_RUN_URL}/health`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Cloud Run Agent Connected:', data);
+                statusText.textContent = 'Connected';
+            })
+            .catch(error => {
+                console.error('❌ Cloud Run Connection Failed:', error);
+                statusText.textContent = 'Connection Failed';
+                addMessage('❌ Failed to connect to Cloud Run agent. Please check the service.', false);
+            });
+    </script>
+</body>
+</html>

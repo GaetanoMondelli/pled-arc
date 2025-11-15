@@ -18,9 +18,6 @@ Everything in the real world starts as a claim: "you own this, you belong to thi
 Arc is built to connect programmable money with the real economy.
 
 
-
-
-
 ##  Here’s why it matters:
 - Use stablecoins as native gas - You pay fees in USDC, not volatile tokens. Costs stay predictable and low.
 - Enable sub‑second finality - Transactions confirm instantly thanks to the Malachite BFT engine, making real‑time finance possible.
@@ -30,7 +27,102 @@ Arc is built to connect programmable money with the real economy.
 
 
 ##  Build DeFi Solutions in the Encode × Arc DeFi Hackathon
-Whether you’re shipping DeFi, payments, or something entirely new, Arc gives you infrastructure built for scale, speed and real adoption.
+Whether you're shipping DeFi, payments, or something entirely new, Arc gives you infrastructure built for scale, speed and real adoption.
+
+---
+
+## 🚀 Circle SDK & Arc Testnet Deployment Guide
+
+### Deployed Smart Contract on Arc Testnet
+
+**Counter Contract**: `0xB070f8E15B34333A70C9Ac3158363a1d8667e617`
+- **Network**: Arc Testnet (Chain ID: 5042002)
+- **Explorer**: https://testnet.arcscan.app/address/0xB070f8E15B34333A70C9Ac3158363a1d8667e617
+- **RPC**: https://rpc.testnet.arc.network
+- **Gas Token**: USDC (Arc uses USDC as native gas!)
+
+### Circle SDK Integration
+
+This project uses **Circle Developer-Controlled Wallets SDK** and **Circle Smart Contract Platform SDK** for blockchain operations.
+
+#### 1. Circle Wallets SDK (Working)
+✅ **Wallet Management** - Create and list Circle wallets
+✅ **Balance Checking** - View USDC/EURC balances on Arc testnet
+✅ **Token Transfers** - Send USDC/EURC between Circle wallets
+✅ **Contract Execution** - Execute smart contract functions via SDK
+
+```javascript
+import { initiateDeveloperControlledWalletsClient } from '@circle-fin/developer-controlled-wallets';
+
+const client = initiateDeveloperControlledWalletsClient({
+  apiKey: process.env.CIRCLE_API_KEY,
+  entitySecret: process.env.CIRCLE_ENTITY_SECRET
+});
+
+// Execute contract function on Arc testnet
+const transaction = await client.createContractExecutionTransaction({
+  walletId: 'your-wallet-id',
+  contractAddress: '0xB070f8E15B34333A70C9Ac3158363a1d8667e617',
+  abiFunctionSignature: 'inc()',
+  abiParameters: [],
+  feeLevel: 'MEDIUM',
+  idempotencyKey: crypto.randomUUID(),
+  entitySecretCiphertext: ciphertext
+});
+```
+
+#### 2. Circle Smart Contract Platform (Limitation Discovered)
+
+⚠️ **Arc Testnet Limitation**: While Circle SCP SDK has `ARC-TESTNET` in TypeScript definitions, the backend API **does not support Arc testnet yet** (returns error 175402).
+
+**Supported Networks**:
+- Ethereum (ETH, ETH-SEPOLIA)
+- Polygon (MATIC, MATIC-AMOY)
+- Avalanche (AVAX, AVAX-FUJI)
+- Arbitrum (ARB, ARB-SEPOLIA)
+- Base (BASE, BASE-SEPOLIA)
+- Optimism (OP, OP-SEPOLIA)
+- Unichain (UNI, UNI-SEPOLIA)
+
+#### 3. Hybrid Deployment Solution
+
+Since Circle SCP doesn't support Arc testnet yet, we use a **hybrid approach**:
+
+**Deploy contracts**: Use ethers.js directly to Arc testnet RPC
+**Everything else**: Use Circle SDK for transfers, execution, wallet management
+
+```javascript
+// Deploy with ethers.js
+import { ethers } from 'ethers';
+
+const provider = new ethers.JsonRpcProvider('https://rpc.testnet.arc.network');
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+const factory = new ethers.ContractFactory(abi, bytecode, wallet);
+const contract = await factory.deploy();
+await contract.waitForDeployment();
+
+// Then use Circle SDK for operations
+const tx = await circleClient.createContractExecutionTransaction({
+  contractAddress: await contract.getAddress(),
+  // ... Circle SDK operations work great!
+});
+```
+
+### Arc Testnet Specific Notes
+
+1. **Gas Token**: Arc uses USDC as native gas (not ETH!)
+2. **Getting USDC**: Transfer from Circle wallet to deployment address
+3. **Gas Costs**: Very low (~0.1 USDC per deployment)
+4. **Speed**: Sub-second finality with Malachite BFT
+
+### Deployment Scripts
+
+See `/app` folder for deployment scripts:
+- `deploy-counter-hardhat-arc.js` - Deploy contracts to Arc testnet
+- `transfer-usdc-to-deployment-wallet.js` - Fund deployer with USDC for gas
+- `verify-counter-arc.js` - Helper for block explorer verification
+
+---
 
 ## TRACKS
 

@@ -1,0 +1,433 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.error('Missing AI API key');
+}
+
+export const genAI = new GoogleGenerativeAI(apiKey!);
+
+export const MODEL_FALLBACKS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash',
+] as const;
+
+export const AI_CONFIG = {
+  DEFAULT_CONFIG: {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.9,
+    maxOutputTokens: 2048,
+  },
+  FAST_CONFIG: {
+    temperature: 0.5,
+    topK: 20,
+    topP: 0.8,
+    maxOutputTokens: 1024,
+  },
+  DETAILED_CONFIG: {
+    temperature: 0.8,
+    topK: 60,
+    topP: 0.95,
+    maxOutputTokens: 4096,
+  }
+} as const;
+
+export class AIService {
+  private static instance: AIService;
+
+  private constructor() {}
+
+  static getInstance(): AIService {
+    if (!AIService.instance) {
+      AIService.instance = new AIService();
+    }
+    return AIService.instance;
+  }
+
+  async generateContent(
+    prompt: string,
+    config: 'default' | 'fast' | 'detailed' | 'precise' = 'default'
+  ): Promise<string> {
+    const generationConfig = {
+      default: AI_CONFIG.DEFAULT_CONFIG,
+      fast: AI_CONFIG.FAST_CONFIG,
+      detailed: AI_CONFIG.DETAILED_CONFIG,
+      precise: AI_CONFIG.DEFAULT_CONFIG
+    }[config];
+
+    for (let i = 0; i < MODEL_FALLBACKS.length; i++) {
+      const modelName = MODEL_FALLBACKS[i];
+
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig
+        });
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        return text;
+
+      } catch (error: any) {
+        const isLastModel = i === MODEL_FALLBACKS.length - 1;
+        const errorStatus = error?.status || 0;
+
+        const shouldFallback =
+          errorStatus === 503 ||
+          errorStatus === 429 ||
+          errorStatus === 404 ||
+          error?.message?.includes('overloaded') ||
+          error?.message?.includes('quota') ||
+          error?.message?.includes('not found');
+
+        if (shouldFallback && !isLastModel) {
+          continue;
+        } else {
+          throw new Error(`All AI models failed. Last error: ${error?.message || 'Unknown error'}`);
+        }
+      }
+    }
+
+    throw new Error('All AI models exhausted without success');
+  }
+}
+
+export const aiService = AIService.getInstance();
+
+export function getAIModel(config: 'default' | 'fast' | 'detailed' = 'default') {
+  const configMap = {
+    default: AI_CONFIG.DEFAULT_CONFIG,
+    fast: AI_CONFIG.FAST_CONFIG,
+    detailed: AI_CONFIG.DETAILED_CONFIG
+  };
+
+  return genAI.getGenerativeModel({
+    model: MODEL_FALLBACKS[0],
+    generationConfig: configMap[config]
+  });
+}
+
+export { genAI as default };
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  type?: 'message' | 'system' | 'thinking' | 'update';
+}
+
+export interface ScenarioContext {
+  scenario: any;
+  currentTime: number;
+  errors: string[];
+  isRunning: boolean;
+}
+
+async function tryModelWithFallback(
+  messages: ChatMessage[],
+  scenarioContext: ScenarioContext,
+  contextPrompt: string,
+  modelIndex: number = 0
+): Promise<string> {
+  if (modelIndex >= MODEL_FALLBACKS.length) {
+    throw new Error('All model fallbacks exhausted');
+  }
+
+  const modelName = MODEL_FALLBACKS[modelIndex];
+
+  try {
+    const currentModel = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: AI_CONFIG.DEFAULT_CONFIG,
+    });
+
+    const conversation = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    const fullConversation = [
+      { role: 'user', parts: [{ text: contextPrompt }] },
+      { role: 'model', parts: [{ text: 'I understand. I\'m ready to help you with scenario editing and template configuration. What would you like to work on?' }] },
+      ...conversation
+    ];
+
+    const chat = currentModel.startChat({
+      history: fullConversation.slice(0, -1),
+    });
+
+    const lastMessage = messages[messages.length - 1];
+    const result = await chat.sendMessage(lastMessage.content);
+
+    return result.response.text();
+  } catch (error: any) {
+    const isLastModel = modelIndex === MODEL_FALLBACKS.length - 1;
+    const errorStatus = error?.status || 0;
+
+    const shouldFallback =
+      errorStatus === 503 ||
+      errorStatus === 429 ||
+      errorStatus === 404 ||
+      error?.message?.includes('overloaded') ||
+      error?.message?.includes('quota') ||
+      error?.message?.includes('not found');
+
+    if (shouldFallback && !isLastModel) {
+      return tryModelWithFallback(messages, scenarioContext, contextPrompt, modelIndex + 1);
+    } else {
+      throw error;
+    }
+  }
+}
+
+export async function generateResponse(
+  messages: ChatMessage[],
+  scenarioContext: ScenarioContext
+): Promise<string> {
+  try {
+    const contextPrompt = `You are an expert assistant for editing a JSON workflow scenario. Your job is to propose precise, schema-valid changes only—no hand-wavy prose, no accidental renames, and no wrong connections. Be deterministic.
+
+STRICT MODE: Protocol V3 ONLY
+- Always assume and emit Protocol v3 format. Never output or infer any legacy shapes.
+- Always keep scenario.version = "3.0".
+- Explicitly DO NOT use legacy fields:
+  - DataSource: NO top-level valueMin/valueMax/destinationNodeId. Use generation{type,valueMin,valueMax} and outputs[] instead.
+  - Queue: NO top-level timeWindow/aggregationMethod/destinationNodeId. Use aggregation{method,formula,trigger{type,window}} and outputs[] instead.
+  - ProcessNode: NO inputNodeIds or outputs[].transformation. Use inputs[] with {name,nodeId,sourceOutputName,...}, outputs[] without transformation, and processing{type,formula,description}.
+  - Sink: MUST have inputs[] and NO outputs.
+  - Multiplexer: NO inputNodeIds. Use inputs[] and outputs[] with multiplexing{strategy,...} for exclusive routing.
+  - All connections must be expressed via outputs[] with destinationNodeId + destinationInputName.
+
+You can handle various types of requests:
+- Adding new nodes (DataSource, Queue, ProcessNode, Sink, Multiplexer)
+- Modifying existing nodes (rename, change parameters)
+- Bulk operations (rename all nodes with a theme/domain)
+- Connecting/disconnecting nodes
+
+For bulk renaming requests like "rename all nodes for supply chain" or "make this a supply chain process", you should:
+1. Understand the existing node structure from the current scenario
+2. Propose appropriate names that fit the domain while maintaining the flow logic
+3. Use JSON patches to rename displayName fields for all nodes
+4. Keep nodeIds unchanged to preserve connections
+
+SCENARIO PROTOCOL V3 (authoritative constraints):
+- Scenario shape:
+  {
+    "version": "3.0",
+    "nodes": Array<node>
+  }
+- Node types and required fields:
+  - DataSource: {
+      nodeId, displayName, position: {x, y}, type: "DataSource",
+      interval: number>0,
+      outputs: [{ name, destinationNodeId, destinationInputName, interface: {type, requiredFields} }],
+      count: number, valueType?: "random" | "sequential" | "hardcoded", valueMin?: number, valueMax?: number
+    }
+  - Queue: {
+      nodeId, displayName, position: {x, y}, type: "Queue",
+      inputs: [{ name, interface: {type, requiredFields}, required: boolean }],
+      outputs: [{ name, destinationNodeId, destinationInputName, interface: {type, requiredFields} }],
+      aggregation: { method: "sum"|"average"|"count"|"first"|"last", formula: string, trigger: {type: "time", window: number} },
+      capacity?: number>0
+    }
+  - ProcessNode: {
+      nodeId, displayName, position: {x, y}, type: "ProcessNode",
+      inputs: [{ name, nodeId, sourceOutputName, interface: {type, requiredFields}, alias?, required: boolean }],
+      outputs: [{ name, destinationNodeId, destinationInputName, interface: {type, requiredFields} }],
+      processing: { type: "transform", formula: string, description?: string }
+    }
+  - Sink: {
+      nodeId, displayName, position: {x, y}, type: "Sink",
+      inputs: [{ name, interface: {type, requiredFields}, required: boolean }]
+    }
+  - Multiplexer: {
+      nodeId, displayName, position: {x, y}, type: "Multiplexer",
+      inputs: [{ name, interface: {type, requiredFields}, required: boolean }],
+      outputs: [{ name, destinationNodeId, destinationInputName, interface: {type, requiredFields} }],
+      multiplexing: { strategy: "round_robin"|"random"|"weighted"|"conditional", weights?: number[], conditions?: string[] }
+    }
+- Valid connections: outputs.destinationNodeId must point to existing nodeId, destinationInputName must match target input.name
+
+ID, NAME, AND @REFERENCE RULES (strict):
+- Resolve @references by first matching displayName (case-insensitive, trim), then fallback to nodeId. If multiple matches, ask for disambiguation. If a single match is found, always use that node's nodeId.
+- VALIDATION: After resolving @reference, check node type compatibility:
+  - If adding DataSource and @reference resolves to non-Queue node, STOP and ask user to specify a Queue target
+  - If connection would violate type rules, STOP and suggest valid alternatives
+- Do NOT copy free-text instruction fragments into names. E.g., from "CALL IT soURCE F and range 2-20":
+  - displayName = "Source F" (normalize capitalization; obvious typos/casing should be corrected)
+  - parameters: range 2-20 -> valueMin=2, valueMax=20
+- Derive nodeId deterministically to match existing style. Use this algorithm:
+  1) If displayName ends with a single letter token (A–Z) that is used across existing nodes (e.g., "Source A", "Queue B", "Processor C", "Output Queue D", "Sink E"), then nodeId = <Type>_<Letter>, e.g., "DataSource_F" for "Source F".
+  2) Otherwise, slugify the displayName to UPPER_SNAKE and use nodeId = <Type>_<SLUG>, avoiding duplicates by appending a numeric suffix if needed (e.g., _2).
+- Never auto-generate timestamp/random IDs.
+
+PARAMETER PARSING RULES:
+- "make it like @X" means copy all applicable parameters from X's node type (e.g., for DataSource: interval, valueMin, valueMax, destinationNodeId), then override only what the user specifies explicitly.
+- Ranges: "up to 20" => 1–20, "range 2-50" => 2–50; interpret as valueMin/valueMax.
+- Intervals: "every 7 sec" => interval=7 (seconds).
+- Connections: If the user says "to @Output Queue D", connect destinationNodeId to the resolved nodeId for that target (in this example: Queue_D). Do not connect to a different queue.
+
+CONFLICT RESOLUTION:
+- When "make it like @X" conflicts with explicit instructions (e.g., copy destination from @Source A -> Queue_B vs user says "to @Output Queue D"), follow explicit instructions and copy only the non-conflicting fields.
+- If a required target cannot be uniquely resolved, ask a single clarifying question and stop.
+
+EDITING PRINCIPLES:
+- Maintain existing nodes unchanged unless explicitly modified.
+- CRITICAL: Validate connections strictly:
+  - DataSource nodes can ONLY connect to Queue nodes (never to other DataSource, ProcessNode, or Sink)
+  - Queue nodes can ONLY connect to ProcessNode or Sink nodes
+  - ProcessNode nodes can connect to Queue or Sink nodes
+  - Sink nodes have no outputs
+- Do not fabricate or change formulas in ProcessNode unless asked. Do not change positions unless asked.
+- Keep naming consistent and human-friendly (Title Case for displayName; correct obvious typos and casing; never include instruction phrases like "range 2-20" in displayName).
+- When adding new nodes, do NOT hardcode positions. The backend will apply semantic positioning automatically using intelligent flow analysis and tight spacing (approximately 180px column width). Just provide basic position: {x: 0, y: 0} and let the semantic positioning engine handle placement.
+- IMPORTANT: When user says "add source to @NodeName", @NodeName must be a Queue node for valid connection. If @NodeName is not a Queue, ask for clarification or suggest connecting to an appropriate Queue instead.
+
+OUTPUT FORMAT (concise and actionable; do NOT claim that you updated anything):
+1) Summary: one line of what you changed.
+2) JSON Patch (RFC 6902) applying minimal changes to the CURRENT scenario - MUST be wrapped in \`\`\`json code blocks.
+3) Validation checklist: bullet list confirming schema and connection validity.
+
+CRITICAL: JSON patches MUST be in this exact format:
+\`\`\`json
+[{"op": "add", "path": "/nodes/-", "value": {...}}]
+\`\`\`
+
+EXAMPLES:
+
+Adding a new node:
+Request: "Add a new source to @Output Queue D and make it like @Source A CALL IT soURCE F and range 2-20"
+Assuming unique matches: @Output Queue D -> nodeId "Queue_D"; @Source A -> DataSource_A
+Then produce:
+- Summary: Add DataSource_F ("Source F") with interval from Source A, range 2-20, destination -> Queue_D
+\`\`\`json
+[{"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "DataSource_F",
+    "displayName": "Source F",
+    "position": {"x": 0, "y": 0},
+    "type": "DataSource",
+    "interval": 3,
+    "outputs": [{"name": "output", "destinationNodeId": "Queue_D", "destinationInputName": "input", "interface": {"type": "SimpleValue", "requiredFields": ["data.value"]}}],
+    "generation": {"type": "random", "count": 5, "valueMin": 2, "valueMax": 20}
+  }}]
+\`\`\`
+- Validation checklist: confirm nodeId uniqueness, destination exists, schema V3 fields present and valid.
+
+Bulk renaming for a domain:
+Request: "Pretend this is a supply chain process, rename all nodes accordingly"
+Given scenario with nodes: Source A, Queue B, Process C, Sink D
+Then produce:
+- Summary: Renamed all nodes to reflect supply chain terminology
+- JSON Patch: multiple replace operations for /nodes/0/displayName, /nodes/1/displayName, etc. with names like "Raw Material Supplier", "Inventory Warehouse", "Production Line", "Distribution Center"
+- Validation checklist: all displayName fields updated, nodeIds preserved, connections maintained.
+
+Adding a Multiplexer for load balancing:
+Request: "Add a round robin multiplexer between @Queue B and @Sink C @Sink D"
+Assuming matches: @Queue B -> Queue_B; @Sink C -> Sink_C; @Sink D -> Sink_D
+Then produce:
+- Summary: Add round robin Multiplexer_E distributing from Queue B to Sink C and Sink D
+\`\`\`json
+[
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "Multiplexer_E",
+    "displayName": "Load Balancer",
+    "position": {"x": 0, "y": 0},
+    "type": "Multiplexer",
+    "inputs": [{"name": "input", "interface": {"type": "SimpleValue", "requiredFields": []}, "required": true}],
+    "outputs": [
+      {"name": "output_1", "destinationNodeId": "Sink_C", "destinationInputName": "input", "interface": {"type": "SimpleValue", "requiredFields": []}},
+      {"name": "output_2", "destinationNodeId": "Sink_D", "destinationInputName": "input", "interface": {"type": "SimpleValue", "requiredFields": []}}
+    ],
+    "multiplexing": {"strategy": "round_robin"}
+  }},
+  {"op": "replace", "path": "/nodes/1/outputs/0/destinationNodeId", "value": "Multiplexer_E"}
+]
+\`\`\`
+- Validation checklist: nodeId unique, connections valid, multiplexing strategy valid, exclusive routing ensured.
+
+Adding a ProcessNode with transformation:
+Request: "Add a processor that doubles the input and sends to @Sink D"
+Then produce:
+- Summary: Add ProcessNode_F ("Value Doubler") with transform formula, connecting to Sink D
+\`\`\`json
+[{"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "ProcessNode_F",
+    "displayName": "Value Doubler",
+    "position": {"x": 0, "y": 0},
+    "type": "ProcessNode",
+    "inputs": [{"name": "input", "nodeId": "<source_node>", "sourceOutputName": "output", "interface": {"type": "SimpleValue", "requiredFields": []}, "required": true}],
+    "outputs": [{"name": "output", "destinationNodeId": "Sink_D", "destinationInputName": "input", "interface": {"type": "TransformationResult", "requiredFields": []}}],
+    "processing": {"type": "transform", "formula": "const doubled = input * 2; return { value: doubled, processedAt: simulationTime };", "description": "Doubles the input value"}
+  }}]
+\`\`\`
+- Validation checklist: nodeId unique, processing formula deterministic (uses simulationTime), connections valid.
+
+AI-powered ProcessNode with conditional Multiplexer:
+Request: "create a flow with data source connected to a processing node asking with an ai prompt if the input is odd and returning true or false and then connected to a multiplexer if false goes to error sink or to credit sink"
+Then produce:
+- Summary: Add DataSource_A ("Input Source"), ProcessNode_B ("AI Odd Checker"), Multiplexer_C ("Conditional Router"), Sink_D ("Error Sink"), and Sink_E ("Credit Sink") with complete flow
+\`\`\`json
+[
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "DataSource_A",
+    "displayName": "Input Source",
+    "position": {"x": 0, "y": 0},
+    "type": "DataSource",
+    "interval": 3,
+    "outputs": [{"name": "output", "destinationNodeId": "ProcessNode_B", "destinationInputName": "input", "interface": {"type": "SimpleValue", "requiredFields": ["data.value"]}}],
+    "generation": {"type": "random", "count": 10, "valueMin": 1, "valueMax": 100}
+  }},
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "ProcessNode_B",
+    "displayName": "AI Odd Checker",
+    "position": {"x": 0, "y": 0},
+    "type": "ProcessNode",
+    "inputs": [{"name": "input", "nodeId": "DataSource_A", "sourceOutputName": "output", "interface": {"type": "SimpleValue", "requiredFields": ["data.value"]}, "required": true}],
+    "outputs": [{"name": "output", "destinationNodeId": "Multiplexer_C", "destinationInputName": "input", "interface": {"type": "TransformationResult", "requiredFields": ["data.isOdd"]}}],
+    "processing": {"type": "transform", "aiPrompt": "Check if the input number is odd. Return {isOdd: true} if odd, {isOdd: false} if even.", "description": "AI-powered odd number detection"}
+  }},
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "Multiplexer_C",
+    "displayName": "Conditional Router",
+    "position": {"x": 0, "y": 0},
+    "type": "Multiplexer",
+    "inputs": [{"name": "input", "interface": {"type": "TransformationResult", "requiredFields": ["data.isOdd"]}, "required": true}],
+    "outputs": [
+      {"name": "false_output", "destinationNodeId": "Sink_D", "destinationInputName": "input", "interface": {"type": "TransformationResult", "requiredFields": []}},
+      {"name": "true_output", "destinationNodeId": "Sink_E", "destinationInputName": "input", "interface": {"type": "TransformationResult", "requiredFields": []}}
+    ],
+    "multiplexing": {"strategy": "conditional", "conditions": ["input.data.isOdd === false", "input.data.isOdd === true"]}
+  }},
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "Sink_D",
+    "displayName": "Error Sink",
+    "position": {"x": 0, "y": 0},
+    "type": "Sink",
+    "inputs": [{"name": "input", "interface": {"type": "TransformationResult", "requiredFields": []}, "required": true}]
+  }},
+  {"op": "add", "path": "/nodes/-", "value": {
+    "nodeId": "Sink_E",
+    "displayName": "Credit Sink",
+    "position": {"x": 0, "y": 0},
+    "type": "Sink",
+    "inputs": [{"name": "input", "interface": {"type": "TransformationResult", "requiredFields": []}, "required": true}]
+  }}
+]
+\`\`\`
+- Validation checklist: All nodeIds unique, AI prompt used for processing, conditional multiplexer strategy valid, complete flow from source to sinks.
+
+Current scenario JSON (read-only context):
+${JSON.stringify(scenarioContext.scenario, null, 2)}
+
+Now, given the user request, produce the output in the exact format above.`;
+
+    return await tryModelWithFallback(messages, scenarioContext, contextPrompt);
+  } catch (error) {
+    throw new Error('Failed to generate response - all models unavailable');
+  }
+}

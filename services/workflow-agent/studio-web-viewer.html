@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LangGraph Workflow Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        #graph {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .thread-list {
+            display: grid;
+            gap: 10px;
+        }
+        .thread-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .thread-status {
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .thread-status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        .thread-status.running {
+            background: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 LangGraph Workflow Viewer</h1>
+        <div class="status connected" id="status">
+            Connected to: https://workflow-agent-319413928411.us-central1.run.app
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('graph')">Graph</button>
+            <button class="tab" onclick="showTab('execute')">Execute</button>
+            <button class="tab" onclick="showTab('threads')">Threads</button>
+        </div>
+
+        <div id="graph-tab" class="tab-content active">
+            <h2>Workflow Graph (Updated)</h2>
+            <div id="graph">
+                <div class="mermaid">
+                    graph TD
+                        Start([Start]) --> CA[Context Analysis]
+                        CA --> DSL[DSL Parsing]
+                        DSL --> BUILD[Scenario Building]
+                        BUILD --> VAL[Validation]
+                        VAL --> POS[Positioning]
+                        POS --> REF{Reflection}
+                        REF -->|Retry| DSL
+                        REF -->|Fix| BUILD
+                        REF -->|Finish| RESP[Response Generation]
+                        RESP --> End([End])
+
+                        style Start fill:#e1f5fe
+                        style End fill:#e1f5fe
+                        style REF fill:#fff3e0
+                        style DSL fill:#f3e5f5
+                        style VAL fill:#e8f5e9
+                        style POS fill:#c8f7c5
+                        style BUILD fill:#fce4ec
+                </div>
+                <p style="color: #0a0; font-weight: bold;">✅ Positioning now happens AFTER validation!</p>
+            </div>
+        </div>
+
+        <div id="execute-tab" class="tab-content">
+            <h2>Execute Workflow</h2>
+            <div class="input-group">
+                <input type="text" id="message" placeholder="Enter your workflow request..." value="Create a data source that generates random numbers">
+                <button onclick="executeWorkflow()">Execute</button>
+            </div>
+            <div id="execute-result"></div>
+        </div>
+
+        <div id="threads-tab" class="tab-content">
+            <h2>Execution Threads</h2>
+            <button onclick="loadThreads()">Refresh</button>
+            <div id="threads-list" class="thread-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://workflow-agent-319413928411.us-central1.run.app';
+
+        mermaid.initialize({ startOnLoad: true });
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+
+            if (tab === 'threads') {
+                loadThreads();
+            }
+        }
+
+        async function executeWorkflow() {
+            const message = document.getElementById('message').value;
+            const resultDiv = document.getElementById('execute-result');
+
+            resultDiv.innerHTML = '<div class="result">⏳ Executing workflow...</div>';
+
+            try {
+                const response = await fetch(API_URL + '/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        input: { message, scenario: null, history: [] },
+                        config: { maxRetries: 2 },
+                        stream: false
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.runId) {
+                    const result = data.result || {};
+                    const scenario = result.scenario || {};
+                    const nodes = scenario.nodes || [];
+
+                    resultDiv.innerHTML = `
+                        <div class="result">
+✅ Execution Complete!
+
+Run ID: ${data.runId}
+Thread ID: ${data.threadId}
+Success: ${result.success || false}
+
+Nodes Created: ${nodes.length}
+${nodes.map(n => `  • ${n.type}: ${n.displayName || n.nodeId}`).join('\n')}
+
+Execution Time: ${data.metadata?.executionTime || 'N/A'}ms
+Steps Executed: ${data.metadata?.stepsExecuted || 0}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="result">❌ Error: ${data.error || 'Unknown error'}\n${data.message || ''}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result">❌ Network error: ${error.message}</div>`;
+            }
+        }
+
+        async function loadThreads() {
+            const listDiv = document.getElementById('threads-list');
+            listDiv.innerHTML = '<p>Loading threads...</p>';
+
+            try {
+                const response = await fetch(API_URL + '/threads');
+                const data = await response.json();
+                const threads = data.threads || [];
+
+                if (threads.length === 0) {
+                    listDiv.innerHTML = '<p>No threads found. Execute a workflow to create one.</p>';
+                } else {
+                    listDiv.innerHTML = threads.map(thread => `
+                        <div class="thread-item">
+                            <div>
+                                <strong>Thread ${thread.id.substring(0, 8)}...</strong>
+                                <br>
+                                <small>Created: ${new Date(thread.created).toLocaleString()}</small>
+                            </div>
+                            <span class="thread-status ${thread.status}">${thread.status}</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                listDiv.innerHTML = `<p>❌ Failed to load threads: ${error.message}</p>`;
+            }
+        }
+
+        // Load threads on page load
+        loadThreads();
+    </script>
+</body>
+</html>
