@@ -390,9 +390,17 @@ export const useSimulationStore = create<SimulationState>((rawSet, get) => {
   loadScenario: async (scenarioData: any) => {
     const currentState = get();
 
+    console.log('🔍 [ACTUAL SimStore loadScenario] Called with scenario:', {
+      hasData: !!scenarioData,
+      nodeCount: scenarioData?.nodes?.length || 0,
+      isRunning: currentState.isRunning,
+      currentTime: currentState.currentTime,
+      hasExecution: !!currentState.currentExecutionId
+    });
+
     // BLOCK loadScenario during active simulation to prevent resets
     if (currentState.isRunning || (currentState.currentTime > 0 && currentState.currentExecutionId)) {
-      console.warn('🚫 [BLOCKED] loadScenario called during active simulation - BLOCKING to prevent reset!');
+      console.warn('🚫 [ACTUAL STORE BLOCKED] loadScenario called during active simulation - BLOCKING to prevent reset!');
       console.warn('🚫 Current time:', currentState.currentTime, 'Running:', currentState.isRunning, 'Execution:', currentState.currentExecutionId);
       console.trace('🚫 Call stack:');
       return;
