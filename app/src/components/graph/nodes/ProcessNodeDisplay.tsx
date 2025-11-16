@@ -9,8 +9,21 @@ import BaseNodeDisplay from "./BaseNodeDisplay";
 const ProcessNodeDisplay: React.FC<NodeProps<RFNodeData>> = (props) => {
   const { data } = props;
   const config = data.config as ProcessNode;
-  const numInputs = config.inputs.length;
-  const numOutputs = config.outputs.length;
+  const numInputs = config.inputs?.length || 0;
+
+  // Handle both formats: outputs array or data.outputs object
+  let numOutputs = 0;
+  let outputFormulas: string[] = [];
+
+  if (config.outputs && Array.isArray(config.outputs)) {
+    numOutputs = config.outputs.length;
+    outputFormulas = config.outputs.map(out => out.transformation?.formula || 'No formula');
+  } else if (config.data?.outputs && typeof config.data.outputs === 'object') {
+    numOutputs = Object.keys(config.data.outputs).length;
+    outputFormulas = Object.entries(config.data.outputs).map(([name, out]: [string, any]) =>
+      out?.formula || 'No formula'
+    );
+  }
 
   return (
     <BaseNodeDisplay
@@ -26,9 +39,9 @@ const ProcessNodeDisplay: React.FC<NodeProps<RFNodeData>> = (props) => {
         <>
           <p>Inputs: {numInputs}</p>
           <p>Outputs: {numOutputs}</p>
-          {config.outputs.map((out, i) => (
-            <p key={i} className="truncate font-mono text-[9px]" title={out.transformation?.formula || 'No formula'}>
-              {out.transformation?.formula || 'No formula'}
+          {outputFormulas.map((formula, i) => (
+            <p key={i} className="truncate font-mono text-[9px]" title={formula}>
+              {formula}
             </p>
           ))}
         </>

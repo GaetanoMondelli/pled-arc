@@ -108,23 +108,21 @@
         "inputs": [
           { "name": "input", "interface": { "type": "MatchedPair", "requiredFields": [] }, "required": true }
         ],
-        "outputs": [
-          {
-            "name": "approved",
-            "destinationNodeId": "ApprovedSink",
-            "destinationInputName": "input",
-            "interface": { "type": "ValidatedData", "requiredFields": [] }
-          },
-          {
-            "name": "rejected",
-            "destinationNodeId": "RejectedSink",
-            "destinationInputName": "input",
-            "interface": { "type": "ValidatedData", "requiredFields": [] }
+        "data": {
+          "outputs": {
+            "approved": {
+              "destinationNodeId": "ApprovedSink",
+              "destinationInputName": "input",
+              "interface": { "type": "ValidatedData", "requiredFields": [] },
+              "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; const reliabilityScore = input.reliabilityScore || gem.reliabilityScore; const data = { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityIndex: reliabilityScore, signedBy: gem.signedBy, profit: netProfit, validatedAt: new Date().toISOString() }; const isValid = gem.isValid === true && reliabilityScore > 70 && netProfit > 0; if (isValid) { return { ...data, status: 'approved' }; } else { return null; }"
+            },
+            "rejected": {
+              "destinationNodeId": "RejectedSink",
+              "destinationInputName": "input",
+              "interface": { "type": "ValidatedData", "requiredFields": [] },
+              "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; const reliabilityScore = input.reliabilityScore || gem.reliabilityScore; const data = { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityIndex: reliabilityScore, signedBy: gem.signedBy, profit: netProfit, validatedAt: new Date().toISOString() }; const isValid = gem.isValid === true && reliabilityScore > 70 && netProfit > 0; if (!isValid) { return { ...data, status: 'rejected' }; } else { return null; }"
+            }
           }
-        ],
-        "processing": {
-          "type": "transform",
-          "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; const reliabilityScore = input.reliabilityScore || gem.reliabilityScore; const data = { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityIndex: reliabilityScore, signedBy: gem.signedBy, profit: netProfit, validatedAt: new Date().toISOString() }; const isValid = gem.isValid === true && reliabilityScore > 70 && netProfit > 0; if (isValid) { return { approved: { ...data, status: 'approved' } }; } else { return { rejected: { ...data, status: 'rejected' } }; }"
         }
       },
       {
