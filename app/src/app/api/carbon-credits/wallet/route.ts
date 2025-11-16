@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
           tokenId: tokenId.toString(),
           claimId,
           workflowId,
+          executionId,
           aggregateValue,
           rewardAmount: formatUsdc(rewardAmount),
           canClaim: canClaim && !alreadyClaimed,

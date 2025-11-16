@@ -1,0 +1,120 @@
+{
+  "id": "dao-house-pl-verification",
+  "name": "DAO House P&L Verification",
+  "description": "Validates P&L documents with Gemini verification and calculates profit distribution",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentEvents",
+        "displayName": "Document Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 100 },
+        "interval": 1,
+        "generation": { "type": "random", "valueMin": 0, "valueMax": 1 },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ProcessDoc",
+            "destinationInputName": "input",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "ProcessDoc",
+        "displayName": "Process Document Event",
+        "type": "ProcessNode",
+        "position": { "x": 350, "y": 100 },
+        "inputs": [
+          {
+            "name": "input",
+            "interface": { "type": "Event", "requiredFields": [] },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "DocSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ProcessedEvent", "requiredFields": [] },
+            "transformation": {
+              "formula": "input",
+              "fieldMapping": {}
+            }
+          }
+        ]
+      },
+      {
+        "nodeId": "DocSink",
+        "displayName": "Document Results",
+        "type": "Sink",
+        "position": { "x": 650, "y": 100 },
+        "inputs": [
+          {
+            "name": "input",
+            "interface": { "type": "ProcessedEvent", "requiredFields": [] },
+            "required": true
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiEvents",
+        "displayName": "Gemini Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 250 },
+        "interval": 1,
+        "generation": { "type": "random", "valueMin": 0, "valueMax": 1 },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ProcessGemini",
+            "destinationInputName": "input",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "ProcessGemini",
+        "displayName": "Process Gemini Event",
+        "type": "ProcessNode",
+        "position": { "x": 350, "y": 250 },
+        "inputs": [
+          {
+            "name": "input",
+            "interface": { "type": "Event", "requiredFields": [] },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "GeminiSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ProcessedEvent", "requiredFields": [] },
+            "transformation": {
+              "formula": "input",
+              "fieldMapping": {}
+            }
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiSink",
+        "displayName": "Gemini Results",
+        "type": "Sink",
+        "position": { "x": 650, "y": 250 },
+        "inputs": [
+          {
+            "name": "input",
+            "interface": { "type": "ProcessedEvent", "requiredFields": [] },
+            "required": true
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

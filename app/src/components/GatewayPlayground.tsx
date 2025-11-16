@@ -1,6 +1,7 @@
     'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Zap, TrendingUp, Globe, ChevronDown, ChevronUp } from 'lucide-react';
@@ -77,8 +78,14 @@ export function GatewayPlayground({ wallets }: GatewayPlaygroundProps) {
     <Card className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-            <Globe className="h-6 w-6 text-white" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center overflow-hidden">
+            <Image
+              src="/arclogo.png"
+              alt="Arc Logo"
+              width={48}
+              height={48}
+              className="object-cover"
+            />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Circle Gateway</h2>

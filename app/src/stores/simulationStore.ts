@@ -259,33 +259,59 @@ interface SimulationState {
 
 // Simple default scenario to prevent loading issues
 const DEFAULT_SCENARIO: Scenario = {
-  id: "default",
+  version: "3.0",
+  id: "default-scenario",
   name: "Default Scenario",
-  description: "A simple default scenario",
+  description: "A simple working scenario with source, process, and sink nodes",
   nodes: [
     {
       nodeId: "source1",
       type: "DataSource",
-      displayName: "Source",
-      x: 100,
-      y: 100,
-      emissionRate: 1,
-      emissionValues: [1, 2, 3],
-      outputs: [{ destinationNodeId: "sink1" }]
+      displayName: "Token Source",
+      position: { x: 100, y: 150 },
+      interval: 3,
+      generation: {
+        type: "random",
+        valueMin: 1,
+        valueMax: 10
+      },
+      outputs: [
+        {
+          destinationNodeId: "process1"
+        }
+      ]
+    },
+    {
+      nodeId: "process1",
+      type: "ProcessNode",
+      displayName: "Processor",
+      position: { x: 350, y: 150 },
+      inputs: [
+        {
+          nodeId: "source1"
+        }
+      ],
+      outputs: [
+        {
+          destinationNodeId: "sink1"
+        }
+      ],
+      formulas: [
+        "input1.value * 2"
+      ]
     },
     {
       nodeId: "sink1",
       type: "Sink",
-      displayName: "Sink",
-      x: 300,
-      y: 100
-    }
-  ],
-  edges: [
-    {
-      id: "edge1",
-      source: "source1",
-      target: "sink1"
+      displayName: "Output Sink",
+      position: { x: 600, y: 150 },
+      inputs: [
+        {
+          nodeId: "process1"
+        }
+      ],
+      logLevel: "info",
+      maxTokens: 1000
     }
   ]
 };
@@ -293,7 +319,8 @@ const DEFAULT_SCENARIO: Scenario = {
 // Initialize nodes configuration and states for default scenario
 const DEFAULT_NODES_CONFIG: Record<string, AnyNode> = {
   source1: DEFAULT_SCENARIO.nodes[0] as any,
-  sink1: DEFAULT_SCENARIO.nodes[1] as any,
+  process1: DEFAULT_SCENARIO.nodes[1] as any,
+  sink1: DEFAULT_SCENARIO.nodes[2] as any,
 };
 
 const DEFAULT_NODE_STATES: Record<string, AnyNodeState> = {
@@ -304,6 +331,14 @@ const DEFAULT_NODE_STATES: Record<string, AnyNodeState> = {
       transitionHistory: []
     }
   } as DataSourceState,
+  process1: {
+    inputBuffers: { input1: [] },
+    lastProcessedTime: -1,
+    stateMachine: {
+      currentState: "process_idle",
+      transitionHistory: []
+    }
+  } as ProcessNodeState,
   sink1: {
     consumedTokenCount: 0,
     lastConsumedTime: -1,
@@ -317,6 +352,7 @@ const DEFAULT_NODE_STATES: Record<string, AnyNodeState> = {
 
 const DEFAULT_ACTIVITY_LOGS: Record<string, HistoryEntry[]> = {
   source1: [],
+  process1: [],
   sink1: [],
 };
 
@@ -3499,8 +3535,14 @@ export const useSimulationStore = create<SimulationState>((rawSet, get) => {
 
   _restoreExecutionState: (execution: ExecutionDocument) => {
     // Restore complete execution state for perfect reconstruction
+    const state = get();
+
+    // CRITICAL: Only update scenario if execution has one embedded
+    // Otherwise keep the template's scenario that was already loaded
+    const scenarioToUse = execution.scenario || state.scenario;
+
     set({
-      scenario: execution.scenario,
+      scenario: scenarioToUse,
       nodeStates: execution.nodeStates,
       currentTime: execution.currentTime,
       eventCounter: execution.eventCounter,
@@ -3509,16 +3551,27 @@ export const useSimulationStore = create<SimulationState>((rawSet, get) => {
       nodeActivityLogs: {},
       currentExecution: execution,
     });
-    
+
     console.log(`🚫 [EVENT-DRIVEN MODE] Skipped restoring ${execution.globalActivityLog?.length || 0} legacy activity logs from execution`);
 
     // Rebuild nodesConfig from scenario
     const nodesConfig: Record<string, AnyNode> = {};
-    execution.scenario.nodes.forEach(node => {
-      nodesConfig[node.nodeId] = node;
-    });
 
-    set(state => ({ ...state, nodesConfig }));
+    // Use whichever scenario we have (execution's or template's)
+    if (scenarioToUse?.nodes) {
+      scenarioToUse.nodes.forEach(node => {
+        nodesConfig[node.nodeId] = node;
+      });
+      set(state => ({ ...state, nodesConfig }));
+
+      if (execution.scenario) {
+        console.log('✅ Using scenario from execution');
+      } else {
+        console.log('✅ Using scenario from template (execution has no embedded scenario)');
+      }
+    } else {
+      console.error('❌ No scenario available from execution or template!');
+    }
   },
 
   clearScenario: () => {

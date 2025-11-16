@@ -289,6 +289,43 @@ export async function POST(req: NextRequest) {
       console.log('✅ Triggered execution event');
     }
 
+    // Generate mock Gemini signature verification event (for testing workflow)
+    // In production, this would come from actual Gemini API call
+    const mockGeminiEvent = {
+      id: `evt_gemini_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'gemini.signature.verified',
+      data: {
+        documentId,
+        fileName,
+        isValid: true, // Mock: signature is valid
+        reliabilityScore: Math.floor(Math.random() * 30) + 70, // Mock: 70-100% reliable
+        signedBy: 'Michael Burry', // Mock: CFO signature
+        verifiedAt: new Date().toISOString(),
+        verificationMethod: 'gemini-vision-pro',
+        prompt: `Verify the signature on this P&L statement for ${companyId}`,
+        confidence: 'high'
+      },
+      timestamp: Date.now() + 1000, // Slightly after document.processed
+    };
+
+    console.log('🤖 Generating mock Gemini verification event...');
+    const geminiEventResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/executions/${executionId}/events`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          events: [mockGeminiEvent],
+        }),
+      }
+    );
+
+    if (!geminiEventResponse.ok) {
+      console.error('Failed to add mock Gemini event');
+    } else {
+      console.log('✅ Mock Gemini verification event added');
+    }
+
     return NextResponse.json({
       success: true,
       data: {

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Leaf, Coins, Wallet, TrendingUp, AlertCircle } from "lucide-react";
+import { Loader2, Leaf, Coins, Wallet, TrendingUp, AlertCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -27,6 +28,7 @@ interface VerifiableClaim {
   tokenId: string;
   claimId: string;
   workflowId: string;
+  executionId: string;
   aggregateValue: string;
   rewardAmount: string;
   canClaim: boolean;
@@ -458,9 +460,21 @@ export default function CarbonCreditsPage() {
                         <p className="text-sm text-muted-foreground font-mono">
                           Token ID: {claim.tokenId.slice(0, 20)}...
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          Workflow: {claim.workflowId}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-muted-foreground">
+                            Workflow: {claim.workflowId}
+                          </p>
+                          {claim.executionId && (
+                            <Link
+                              href={`/template-editor/${claim.workflowId}/${claim.executionId}`}
+                              target="_blank"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Verify Claim
+                            </Link>
+                          )}
+                        </div>
                       </div>
                       {!claim.alreadyClaimed && claim.canClaim && (
                         <Button

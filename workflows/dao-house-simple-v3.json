@@ -1,0 +1,76 @@
+{
+  "id": "dao-house-simple-v3",
+  "name": "DAO House Simple Test",
+  "description": "Simple test with 2 DataSources reading events",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentEventSource",
+        "displayName": "Document Events",
+        "type": "DataSource",
+        "position": {
+          "x": 50,
+          "y": 100
+        },
+        "generation": {
+          "type": "execution-events",
+          "eventType": "document.processed"
+        },
+        "outputs": [
+          {
+            "destinationNodeId": "DocumentSink"
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiEventSource",
+        "displayName": "Gemini Events",
+        "type": "DataSource",
+        "position": {
+          "x": 50,
+          "y": 250
+        },
+        "generation": {
+          "type": "execution-events",
+          "eventType": "gemini.signature.verified"
+        },
+        "outputs": [
+          {
+            "destinationNodeId": "GeminiSink"
+          }
+        ]
+      },
+      {
+        "nodeId": "DocumentSink",
+        "displayName": "Document Results",
+        "type": "Sink",
+        "position": {
+          "x": 350,
+          "y": 100
+        },
+        "inputs": [
+          {
+            "name": "input"
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiSink",
+        "displayName": "Gemini Results",
+        "type": "Sink",
+        "position": {
+          "x": 350,
+          "y": 250
+        },
+        "inputs": [
+          {
+            "name": "input"
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

@@ -1,0 +1,252 @@
+{
+  "id": "dao-house-pl-verification-v3",
+  "name": "DAO House P&L Verification & Distribution",
+  "description": "Validates profit & loss documents with Gemini signature verification and automatically distributes profits",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentEvents",
+        "displayName": "Document Processed Events",
+        "description": "Reads document.processed events from execution",
+        "position": { "x": 50, "y": 100 },
+        "type": "DataSource",
+        "generation": {
+          "type": "execution-events",
+          "eventType": "document.processed"
+        },
+        "outputs": [
+          {
+            "name": "docEvent",
+            "destinationNodeId": "EventMatchQueue",
+            "destinationInputName": "docInput"
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiEvents",
+        "displayName": "Gemini Verification Events",
+        "description": "Reads gemini.signature.verified events from execution",
+        "position": { "x": 50, "y": 250 },
+        "type": "DataSource",
+        "generation": {
+          "type": "execution-events",
+          "eventType": "gemini.signature.verified"
+        },
+        "outputs": [
+          {
+            "name": "geminiEvent",
+            "destinationNodeId": "EventMatchQueue",
+            "destinationInputName": "geminiInput"
+          }
+        ]
+      },
+      {
+        "nodeId": "EventMatchQueue",
+        "displayName": "Event Matching Queue",
+        "description": "Collects and matches events by documentId",
+        "position": { "x": 350, "y": 175 },
+        "type": "Queue",
+        "inputs": [
+          {
+            "name": "docInput",
+            "interface": { "type": "Event" },
+            "required": true
+          },
+          {
+            "name": "geminiInput",
+            "interface": { "type": "Event" },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "matchedPair",
+            "destinationNodeId": "DataFilter",
+            "destinationInputName": "eventPair"
+          }
+        ],
+        "aggregation": {
+          "method": "custom",
+          "trigger": { "type": "count", "threshold": 2 }
+        },
+        "capacity": 100
+      },
+      {
+        "nodeId": "DataFilter",
+        "displayName": "Filter P&L Documents",
+        "description": "Filters for Profit & Loss documents only",
+        "position": { "x": 650, "y": 175 },
+        "type": "ProcessNode",
+        "inputs": [
+          {
+            "name": "eventPair",
+            "interface": { "type": "MatchedEvents" },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "filteredData",
+            "destinationNodeId": "FieldExtractor",
+            "destinationInputName": "matchedData"
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "description": "Checks if document contains 'Profit' and 'Net Profit'",
+          "formula": "(() => { const docEvent = eventPair.find(e => e.type === 'document.processed'); const text = docEvent?.data?.textContent || ''; if (text.includes('Profit') && text.includes('Net Profit')) { return eventPair; } else { return null; } })()"
+        }
+      },
+      {
+        "nodeId": "FieldExtractor",
+        "displayName": "Extract & Transform Fields",
+        "description": "Extracts key fields and parses net profit amount",
+        "position": { "x": 950, "y": 175 },
+        "type": "ProcessNode",
+        "inputs": [
+          {
+            "name": "matchedData",
+            "interface": { "type": "MatchedEvents" },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "extractedData",
+            "destinationNodeId": "ValidationFSM",
+            "destinationInputName": "dataInput"
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "description": "Extracts fields and parses net profit from text",
+          "formula": "(() => { const docEvent = matchedData.find(e => e.type === 'document.processed'); const gemEvent = matchedData.find(e => e.type === 'gemini.signature.verified'); const doc = docEvent.data; const gem = gemEvent.data; const textMatch = doc.textContent.match(/Net Profit[:\\s]+\\$?([0-9,.]+)/); const netProfitStr = textMatch ? textMatch[1] : null; const netProfit = netProfitStr ? parseFloat(netProfitStr.replace(/,/g, '')) : 0; return { fileName: doc.fileName, documentId: doc.documentId, textContent: doc.textContent, isSignatureValid: gem.isValid, reliabilityScore: gem.reliabilityScore, signedBy: gem.signedBy, verifiedAt: gem.verifiedAt, netProfit, netProfitAmount: netProfit }; })()"
+        }
+      },
+      {
+        "nodeId": "ValidationFSM",
+        "displayName": "P&L Validation State Machine",
+        "description": "Validates signature, reliability score, and net profit",
+        "position": { "x": 1250, "y": 175 },
+        "type": "FSMProcessNode",
+        "inputs": [
+          {
+            "name": "dataInput",
+            "interface": { "type": "ExtractedData" },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "approved",
+            "destinationNodeId": "DistributionCalc",
+            "destinationInputName": "approvedData"
+          },
+          {
+            "name": "rejected",
+            "destinationNodeId": "RejectedSink",
+            "destinationInputName": "rejectedData"
+          }
+        ],
+        "fsm": {
+          "states": [
+            { "name": "Validating" },
+            {
+              "name": "Approved",
+              "onEntry": [
+                {
+                  "action": "emit",
+                  "target": "approved",
+                  "formula": "{ ...dataInput, status: 'approved', approvedAt: new Date().toISOString() }"
+                }
+              ]
+            },
+            {
+              "name": "Rejected",
+              "onEntry": [
+                {
+                  "action": "emit",
+                  "target": "rejected",
+                  "formula": "{ ...dataInput, status: 'rejected', rejectedAt: new Date().toISOString(), reason: 'Failed validation' }"
+                }
+              ]
+            }
+          ],
+          "initialState": "Validating",
+          "transitions": [
+            {
+              "from": "Validating",
+              "to": "Approved",
+              "trigger": "default",
+              "guard": "dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfitAmount > 0"
+            },
+            {
+              "from": "Validating",
+              "to": "Rejected",
+              "trigger": "default",
+              "guard": "!(dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfitAmount > 0)"
+            }
+          ],
+          "variables": {}
+        }
+      },
+      {
+        "nodeId": "DistributionCalc",
+        "displayName": "Calculate Profit Distribution",
+        "description": "Calculates 90% distribution and 10% reserve",
+        "position": { "x": 1550, "y": 100 },
+        "type": "ProcessNode",
+        "inputs": [
+          {
+            "name": "approvedData",
+            "interface": { "type": "ValidatedData" },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "distribution",
+            "destinationNodeId": "ApprovedSink",
+            "destinationInputName": "result"
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "description": "Calculates 90/10 split",
+          "formula": "(() => { const netProfit = approvedData.netProfitAmount || 0; const distributionAmount = netProfit * 0.9; const reserveAmount = netProfit * 0.1; return { ...approvedData, distributionAmount, reserveAmount, calculatedAt: new Date().toISOString() }; })()"
+        }
+      },
+      {
+        "nodeId": "ApprovedSink",
+        "displayName": "Approved P&L Results",
+        "description": "Stores approved results with distribution",
+        "position": { "x": 1850, "y": 100 },
+        "type": "Sink",
+        "inputs": [
+          {
+            "name": "result",
+            "interface": { "type": "DistributionResult" },
+            "required": true
+          }
+        ]
+      },
+      {
+        "nodeId": "RejectedSink",
+        "displayName": "Rejected Documents",
+        "description": "Stores rejected documents",
+        "position": { "x": 1550, "y": 300 },
+        "type": "Sink",
+        "inputs": [
+          {
+            "name": "rejectedData",
+            "interface": { "type": "ValidatedData" },
+            "required": true
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

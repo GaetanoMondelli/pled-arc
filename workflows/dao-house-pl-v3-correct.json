@@ -1,0 +1,122 @@
+{
+  "id": "dao-house-pl-verification-v3",
+  "name": "DAO House P&L Verification",
+  "description": "Validates P&L documents with Gemini signature verification",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentEvents",
+        "displayName": "Document Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 100 },
+        "interval": 1,
+        "generation": {
+          "type": "random",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventQueue",
+            "destinationInputName": "docInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiEvents",
+        "displayName": "Gemini Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 250 },
+        "interval": 1,
+        "generation": {
+          "type": "random",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventQueue",
+            "destinationInputName": "geminiInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "EventQueue",
+        "displayName": "Event Queue",
+        "type": "Queue",
+        "position": { "x": 350, "y": 175 },
+        "inputs": [
+          {
+            "name": "docInput",
+            "interface": { "type": "Event", "requiredFields": [] },
+            "required": true
+          },
+          {
+            "name": "geminiInput",
+            "interface": { "type": "Event", "requiredFields": [] },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "DataFilter",
+            "destinationInputName": "events",
+            "interface": { "type": "EventPair", "requiredFields": [] }
+          }
+        ],
+        "aggregation": {
+          "method": "collect",
+          "formula": "COLLECT(inputs)",
+          "trigger": { "type": "count", "window": 2 }
+        },
+        "capacity": 100
+      },
+      {
+        "nodeId": "DataFilter",
+        "displayName": "Filter P&L",
+        "type": "ProcessNode",
+        "position": { "x": 650, "y": 175 },
+        "inputs": [
+          {
+            "name": "events",
+            "interface": { "type": "EventPair", "requiredFields": [] },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ResultSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ProcessedData", "requiredFields": [] },
+            "transformation": {
+              "formula": "events",
+              "fieldMapping": {}
+            }
+          }
+        ]
+      },
+      {
+        "nodeId": "ResultSink",
+        "displayName": "Results",
+        "type": "Sink",
+        "position": { "x": 950, "y": 175 },
+        "inputs": [
+          {
+            "name": "input",
+            "interface": { "type": "ProcessedData", "requiredFields": [] },
+            "required": true
+          }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

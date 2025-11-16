@@ -42,6 +42,8 @@ export function useTemplateEditor() {
       if (existingQueue) {
         console.log('🔄 Reusing existing external queue from store (has events from URL loading)');
         externalQueueRef.current = existingQueue;
+        // CRITICAL: Must connect existing queue to engine, otherwise events won't be processed!
+        externalQueueRef.current.setSimulationEngine(engineRef.current);
       } else {
         console.log('🆕 Creating new external queue');
         externalQueueRef.current = new ExternalEventQueue();

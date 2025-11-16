@@ -1,0 +1,214 @@
+{
+  "id": "dao-house-pl-verification",
+  "name": "DAO House P&L Verification & Distribution",
+  "description": "Validates profit & loss documents with Gemini signature verification and automatically distributes profits",
+  "version": "1.0.0",
+  "compatibleExecutions": ["dUJ8IhwEe7Dg9AGbIgeJ8"],
+  "nodes": [
+    {
+      "id": "filter-pl-docs",
+      "type": "dataFilter",
+      "config": {
+        "eventType": "document.processed",
+        "conditions": [
+          {
+            "field": "data.jsonContent.documentType",
+            "operator": "contains",
+            "value": "Profit"
+          },
+          {
+            "field": "data.textContent",
+            "operator": "contains",
+            "value": "Net Profit"
+          }
+        ]
+      },
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "id": "validate-and-extract",
+      "type": "process",
+      "config": {
+        "name": "Validate P&L & Extract Fields",
+        "description": "Matches document with Gemini verification and extracts key fields",
+        "dataSources": [
+          {
+            "id": "document",
+            "eventType": "document.processed",
+            "matchField": "documentId"
+          },
+          {
+            "id": "verification",
+            "eventType": "gemini.signature.verified",
+            "matchField": "documentId"
+          }
+        ],
+        "matchingStrategy": "waitForBoth",
+        "timeout": 30000,
+        "extractFields": [
+          {
+            "name": "fileName",
+            "source": "document",
+            "path": "data.fileName"
+          },
+          {
+            "name": "documentId",
+            "source": "document",
+            "path": "data.documentId"
+          },
+          {
+            "name": "textContent",
+            "source": "document",
+            "path": "data.textContent"
+          },
+          {
+            "name": "isSignatureValid",
+            "source": "verification",
+            "path": "data.isValid"
+          },
+          {
+            "name": "reliabilityScore",
+            "source": "verification",
+            "path": "data.reliabilityScore"
+          },
+          {
+            "name": "signedBy",
+            "source": "verification",
+            "path": "data.signedBy"
+          },
+          {
+            "name": "verifiedAt",
+            "source": "verification",
+            "path": "data.verifiedAt"
+          }
+        ],
+        "transformations": [
+          {
+            "name": "extractNetProfit",
+            "type": "regex",
+            "input": "textContent",
+            "pattern": "Net Profit[:\\s]+\\$?([0-9,.]+)",
+            "output": "netProfit"
+          },
+          {
+            "name": "parseNetProfit",
+            "type": "parseFloat",
+            "input": "netProfit",
+            "output": "netProfitAmount"
+          }
+        ]
+      },
+      "position": { "x": 350, "y": 100 }
+    },
+    {
+      "id": "check-validity",
+      "type": "condition",
+      "config": {
+        "conditions": [
+          {
+            "field": "isSignatureValid",
+            "operator": "equals",
+            "value": true
+          },
+          {
+            "field": "reliabilityScore",
+            "operator": "greaterThan",
+            "value": 70
+          },
+          {
+            "field": "netProfitAmount",
+            "operator": "greaterThan",
+            "value": 0
+          }
+        ],
+        "logic": "AND"
+      },
+      "position": { "x": 600, "y": 100 }
+    },
+    {
+      "id": "calculate-distribution",
+      "type": "process",
+      "config": {
+        "name": "Calculate Profit Distribution",
+        "calculations": [
+          {
+            "name": "distributionAmount",
+            "formula": "netProfitAmount * 0.9",
+            "description": "90% of net profit for distribution"
+          },
+          {
+            "name": "reserveAmount",
+            "formula": "netProfitAmount * 0.1",
+            "description": "10% kept in reserve"
+          }
+        ]
+      },
+      "position": { "x": 850, "y": 80 }
+    },
+    {
+      "id": "log-results",
+      "type": "sink",
+      "config": {
+        "name": "P&L Verification Results",
+        "fields": [
+          "fileName",
+          "documentId",
+          "netProfitAmount",
+          "isSignatureValid",
+          "reliabilityScore",
+          "signedBy",
+          "distributionAmount",
+          "reserveAmount",
+          "verifiedAt"
+        ],
+        "format": "json"
+      },
+      "position": { "x": 1100, "y": 80 }
+    },
+    {
+      "id": "log-rejected",
+      "type": "sink",
+      "config": {
+        "name": "Rejected Documents",
+        "fields": [
+          "fileName",
+          "documentId",
+          "isSignatureValid",
+          "reliabilityScore",
+          "netProfitAmount"
+        ],
+        "format": "json"
+      },
+      "position": { "x": 850, "y": 200 }
+    }
+  ],
+  "edges": [
+    {
+      "source": "filter-pl-docs",
+      "target": "validate-and-extract"
+    },
+    {
+      "source": "validate-and-extract",
+      "target": "check-validity"
+    },
+    {
+      "source": "check-validity",
+      "target": "calculate-distribution",
+      "condition": "true"
+    },
+    {
+      "source": "check-validity",
+      "target": "log-rejected",
+      "condition": "false"
+    },
+    {
+      "source": "calculate-distribution",
+      "target": "log-results"
+    }
+  ],
+  "metadata": {
+    "author": "DAO House Team",
+    "created": "2025-11-15",
+    "tags": ["dao-house", "profit-loss", "gemini-verification", "treasury"]
+  }
+}
