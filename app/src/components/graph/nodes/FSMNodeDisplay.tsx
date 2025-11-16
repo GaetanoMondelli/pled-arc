@@ -46,9 +46,9 @@ const FSMNodeDisplay: React.FC<NodeProps<RFNodeData>> = (props) => {
         {...props}
         icon={Settings}
         nodeType="FSM Process"
-        headerColor="bg-blue-600"
-        activeBorderColor="border-blue-400"
-        activeShadowColor="shadow-blue-400/50"
+        headerColor="bg-purple-600"
+        activeBorderColor="border-purple-400"
+        activeShadowColor="shadow-purple-400/50"
         showInputHandle={true}
         showOutputHandle={true}
         inputHandleId="event"

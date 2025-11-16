@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 async function uploadTemplate() {
-  const templatePath = path.join(__dirname, 'workflows', 'dao-house-simple-v3.json');
+  const templatePath = path.join(__dirname, 'workflows', 'dao-house-complete-v3.json');
   const templateData = JSON.parse(fs.readFileSync(templatePath, 'utf8'));
 
   console.log('📤 Uploading V3 template...');

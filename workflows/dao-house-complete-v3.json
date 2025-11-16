@@ -1,0 +1,220 @@
+{
+  "id": "dao-house-complete-v3",
+  "name": "DAO House P&L Complete Flow",
+  "description": "Complete flow with upload, processing, and Gemini verification",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentUploadSource",
+        "displayName": "Document Upload Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 50 },
+        "interval": 1,
+        "generation": {
+          "type": "execution-events",
+          "eventType": "document.uploaded",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "UploadSink",
+            "destinationInputName": "input",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "DocumentProcessedSource",
+        "displayName": "Document Processed Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 150 },
+        "interval": 1,
+        "generation": {
+          "type": "execution-events",
+          "eventType": "document.processed",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventMatcher",
+            "destinationInputName": "docInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiVerificationSource",
+        "displayName": "Gemini Verification Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 300 },
+        "interval": 1,
+        "generation": {
+          "type": "execution-events",
+          "eventType": "gemini.signature.verified",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventMatcher",
+            "destinationInputName": "geminiInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "UploadSink",
+        "displayName": "Upload Log",
+        "type": "Sink",
+        "position": { "x": 350, "y": 50 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "Event", "requiredFields": [] } }
+        ]
+      },
+      {
+        "nodeId": "EventMatcher",
+        "displayName": "Match Signature",
+        "type": "ProcessNode",
+        "position": { "x": 400, "y": 225 },
+        "inputs": [
+          { "name": "docInput", "interface": { "type": "Event", "requiredFields": [] }, "required": true },
+          { "name": "geminiInput", "interface": { "type": "Event", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ProfitExtractor",
+            "destinationInputName": "input",
+            "interface": { "type": "MatchedPair", "requiredFields": [] }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "if (docInput.data.documentId === geminiInput.data.documentId) { return { document: docInput, gemini: geminiInput, documentId: docInput.data.documentId, reliabilityScore: geminiInput.data.reliabilityScore }; } else { return null; }"
+        }
+      },
+      {
+        "nodeId": "ProfitExtractor",
+        "displayName": "Extract Net Profit",
+        "type": "ProcessNode",
+        "position": { "x": 700, "y": 225 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "MatchedPair", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ValidationFSM",
+            "destinationInputName": "dataInput",
+            "interface": { "type": "ExtractedData", "requiredFields": [] }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; return { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityScore: input.reliabilityScore || gem.reliabilityScore, signedBy: gem.signedBy, netProfit: netProfit };"
+        }
+      },
+      {
+        "nodeId": "ValidationFSM",
+        "displayName": "Validate Signature & Profit",
+        "type": "FSMProcessNode",
+        "position": { "x": 1000, "y": 225 },
+        "inputs": [
+          { "name": "dataInput", "interface": { "type": "ExtractedData", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "FormatResult",
+            "destinationInputName": "input",
+            "interface": { "type": "FSMOutput", "requiredFields": [] }
+          }
+        ],
+        "fsm": {
+          "states": [
+            { "name": "Validating" },
+            { "name": "Approved" },
+            { "name": "Rejected" }
+          ],
+          "initialState": "Validating",
+          "transitions": [
+            {
+              "from": "Validating",
+              "to": "Approved",
+              "trigger": "default",
+              "guard": "dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0"
+            },
+            {
+              "from": "Validating",
+              "to": "Rejected",
+              "trigger": "default",
+              "guard": "!(dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0)"
+            }
+          ],
+          "variables": {}
+        }
+      },
+      {
+        "nodeId": "FormatResult",
+        "displayName": "Format Result",
+        "type": "ProcessNode",
+        "position": { "x": 1250, "y": 225 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "FSMOutput", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "approved",
+            "destinationNodeId": "ApprovedSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ValidatedData", "requiredFields": [] },
+            "transformation": {
+              "formula": "input.state === 'Approved' ? input : null",
+              "fieldMapping": {}
+            }
+          },
+          {
+            "name": "rejected",
+            "destinationNodeId": "RejectedSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ValidatedData", "requiredFields": [] },
+            "transformation": {
+              "formula": "input.state === 'Rejected' ? input : null",
+              "fieldMapping": {}
+            }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "const data = input.originalToken; return { ...data, status: input.state.toLowerCase(), validatedAt: new Date().toISOString(), reliabilityIndex: data.reliabilityScore, profit: data.netProfit };"
+        }
+      },
+      {
+        "nodeId": "ApprovedSink",
+        "displayName": "Approved P&L",
+        "type": "Sink",
+        "position": { "x": 1550, "y": 150 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "ValidatedData", "requiredFields": [] } }
+        ]
+      },
+      {
+        "nodeId": "RejectedSink",
+        "displayName": "Rejected Documents",
+        "type": "Sink",
+        "position": { "x": 1550, "y": 350 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "ValidatedData", "requiredFields": [] } }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}

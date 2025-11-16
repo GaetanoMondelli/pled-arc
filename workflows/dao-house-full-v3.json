@@ -1,0 +1,200 @@
+{
+  "id": "dao-house-full-v3",
+  "name": "DAO House P&L Verification Full",
+  "description": "Complete P&L verification with signature check and profit extraction",
+  "version": "3.0",
+  "scenario": {
+    "version": "3.0",
+    "nodes": [
+      {
+        "nodeId": "DocumentEventSource",
+        "displayName": "Document Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 100 },
+        "interval": 1,
+        "generation": {
+          "type": "execution-events",
+          "eventType": "document.processed",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventMatcher",
+            "destinationInputName": "docInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "GeminiEventSource",
+        "displayName": "Gemini Events",
+        "type": "DataSource",
+        "position": { "x": 50, "y": 250 },
+        "interval": 1,
+        "generation": {
+          "type": "execution-events",
+          "eventType": "gemini.signature.verified",
+          "valueMin": 0,
+          "valueMax": 1
+        },
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "EventMatcher",
+            "destinationInputName": "geminiInput",
+            "interface": { "type": "Event", "requiredFields": [] }
+          }
+        ]
+      },
+      {
+        "nodeId": "EventMatcher",
+        "displayName": "Match by Document ID",
+        "type": "ProcessNode",
+        "position": { "x": 350, "y": 175 },
+        "inputs": [
+          { "name": "docInput", "interface": { "type": "Event", "requiredFields": [] }, "required": true },
+          { "name": "geminiInput", "interface": { "type": "Event", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "DataFilter",
+            "destinationInputName": "input",
+            "interface": { "type": "MatchedPair", "requiredFields": [] }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "if (docInput.data.documentId === geminiInput.data.documentId) { return { document: docInput, gemini: geminiInput, documentId: docInput.data.documentId }; } else { return null; }"
+        }
+      },
+      {
+        "nodeId": "DataFilter",
+        "displayName": "Filter P&L Documents",
+        "type": "ProcessNode",
+        "position": { "x": 650, "y": 175 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "MatchedPair", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "FieldExtractor",
+            "destinationInputName": "input",
+            "interface": { "type": "FilteredData", "requiredFields": [] }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "const text = input.document.data.textContent || ''; if (text.includes('Profit') && text.includes('Net Profit')) { return input; } else { return null; }"
+        }
+      },
+      {
+        "nodeId": "FieldExtractor",
+        "displayName": "Extract Net Profit",
+        "type": "ProcessNode",
+        "position": { "x": 950, "y": 175 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "FilteredData", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "output",
+            "destinationNodeId": "ValidationFSM",
+            "destinationInputName": "dataInput",
+            "interface": { "type": "ExtractedData", "requiredFields": [] }
+          }
+        ],
+        "processing": {
+          "type": "transform",
+          "formula": "const doc = input.document.data; const gem = input.gemini.data; const textMatch = doc.textContent.match(/Net Profit[:\\s]+\\$?([0-9,.]+)/); const netProfitStr = textMatch ? textMatch[1] : null; const netProfit = netProfitStr ? parseFloat(netProfitStr.replace(/,/g, '')) : 0; return { fileName: doc.fileName, documentId: doc.documentId, textContent: doc.textContent, isSignatureValid: gem.isValid, reliabilityScore: gem.reliabilityScore, signedBy: gem.signedBy, netProfit: netProfit };"
+        }
+      },
+      {
+        "nodeId": "ValidationFSM",
+        "displayName": "Validate Signature & Profit",
+        "type": "FSMProcessNode",
+        "position": { "x": 1250, "y": 175 },
+        "inputs": [
+          { "name": "dataInput", "interface": { "type": "ExtractedData", "requiredFields": [] }, "required": true }
+        ],
+        "outputs": [
+          {
+            "name": "approved",
+            "destinationNodeId": "ApprovedSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ValidatedData", "requiredFields": [] }
+          },
+          {
+            "name": "rejected",
+            "destinationNodeId": "RejectedSink",
+            "destinationInputName": "input",
+            "interface": { "type": "ValidatedData", "requiredFields": [] }
+          }
+        ],
+        "fsm": {
+          "states": [
+            { "name": "Validating" },
+            {
+              "name": "Approved",
+              "onEntry": [
+                {
+                  "action": "emit",
+                  "target": "approved",
+                  "formula": "{ ...dataInput, status: 'approved', approvedAt: new Date().toISOString() }"
+                }
+              ]
+            },
+            {
+              "name": "Rejected",
+              "onEntry": [
+                {
+                  "action": "emit",
+                  "target": "rejected",
+                  "formula": "{ ...dataInput, status: 'rejected', rejectedAt: new Date().toISOString() }"
+                }
+              ]
+            }
+          ],
+          "initialState": "Validating",
+          "transitions": [
+            {
+              "from": "Validating",
+              "to": "Approved",
+              "trigger": "default",
+              "guard": "dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0"
+            },
+            {
+              "from": "Validating",
+              "to": "Rejected",
+              "trigger": "default",
+              "guard": "!(dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0)"
+            }
+          ],
+          "variables": {}
+        }
+      },
+      {
+        "nodeId": "ApprovedSink",
+        "displayName": "Approved P&L",
+        "type": "Sink",
+        "position": { "x": 1550, "y": 100 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "ValidatedData", "requiredFields": [] } }
+        ]
+      },
+      {
+        "nodeId": "RejectedSink",
+        "displayName": "Rejected Documents",
+        "type": "Sink",
+        "position": { "x": 1550, "y": 300 },
+        "inputs": [
+          { "name": "input", "interface": { "type": "ValidatedData", "requiredFields": [] } }
+        ]
+      }
+    ],
+    "edges": []
+  }
+}
