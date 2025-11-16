@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 // GET - Get wallet balances
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const walletId = params.id;
+    const { id: walletId } = await params;
 
     const { getCircleClient } = await import('@/lib/circle-wallet');
     const client = getCircleClient();

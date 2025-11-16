@@ -1,0 +1,35 @@
+[
+  {
+    "name": "Michael Burry",
+    "role": "CFO",
+    "network": "arc-testnet",
+    "shares": 33.33,
+    "privateKey": "0x3823bce22253d09ec67cbfc021a69aeb7707f180e7da9174b7eb0ba5cfa8c4b7",
+    "address": "0x55cf282179673c86c1d8159ffb1394e68b8c72ef",
+    "type": "member",
+    "isGateway": true,
+    "excludeFromTreasury": true
+  },
+  {
+    "name": "Cathie Wood",
+    "role": "CTO",
+    "network": "arc-testnet",
+    "shares": 33.33,
+    "privateKey": "0xac35af7a81662b93a5fa1362a349e9ad9e7207facd5a3b3562a792b8964fbaa0",
+    "address": "0xd43eab10b08dfe2e0d25afe76df91902168ab5b2",
+    "type": "member",
+    "isGateway": true,
+    "excludeFromTreasury": true
+  },
+  {
+    "name": "Ray Dalio",
+    "role": "CEO",
+    "network": "ethereum-sepolia",
+    "shares": 33.34,
+    "privateKey": "0x197ee72f2514c7b89bee1465cc8f323d52b09c0a2b302e9409f136c8f8bfd06b",
+    "address": "0x591e7e776a5650aa4f116d37cfd4a9c96beb65ba",
+    "type": "member",
+    "isGateway": true,
+    "excludeFromTreasury": true
+  }
+]

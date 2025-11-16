@@ -22,12 +22,23 @@ export const useEdgeGenerationFromScenario = (
     // Also include nodes that are targets of visible nodes (for external outputs)
     const allTargetNodeIds = new Set<string>();
     scenario.nodes.forEach(node => {
-      if (visibleNodeIds.has(node.nodeId) && node.outputs) {
-        node.outputs.forEach(output => {
-          if (output.destinationNodeId) {
-            allTargetNodeIds.add(output.destinationNodeId);
-          }
-        });
+      if (visibleNodeIds.has(node.nodeId)) {
+        // Handle outputs array format
+        if (node.outputs) {
+          node.outputs.forEach(output => {
+            if (output.destinationNodeId) {
+              allTargetNodeIds.add(output.destinationNodeId);
+            }
+          });
+        }
+        // Handle data.outputs object format
+        if (node.data?.outputs && typeof node.data.outputs === 'object') {
+          Object.values(node.data.outputs).forEach((output: any) => {
+            if (output?.destinationNodeId) {
+              allTargetNodeIds.add(output.destinationNodeId);
+            }
+          });
+        }
       }
     });    scenario.nodes.forEach(node => {
       // Handle Group nodes specially - create virtual edges from group to external targets
@@ -76,68 +87,91 @@ export const useEdgeGenerationFromScenario = (
         });
       }
       
+      // Collect all outputs (both array and object formats)
+      const outputs: Array<{ name: string; destinationNodeId: string; destinationInputName?: string }> = [];
+
       // Handle outputs array (V3 format) for regular nodes
       if (node.outputs && node.outputs.length > 0) {
-        node.outputs.forEach(output => {
-          const hasDestination = output.destinationNodeId && output.destinationNodeId.trim() !== "";
-          // Show edge if source is visible (even if target is not - external outputs)
-          const sourceVisible = visibleNodeIds.has(node.nodeId);
-          const isVisible = hasDestination && sourceVisible;
-          
-          if (hasDestination && isVisible) {
-            const targetNode = scenario.nodes.find(n => n.nodeId === output.destinationNodeId);
-            
-            // Determine source handle based on node type
-            // IMPORTANT: Handle IDs must match what's defined in the node display components
-            let sourceHandle: string | undefined;
-            if (node.type === 'ProcessNode') {
-              sourceHandle = `output-${output.name}`;
-            } else if (node.type === 'FSMProcessNode') {
-              // FSMProcessNode uses the output name directly
-              sourceHandle = output.name;
-            } else if (node.type === 'StateMultiplexer') {
-              sourceHandle = output.name;
-            } else if (node.type === 'DataSource') {
-              sourceHandle = 'output';
-            } else {
-              sourceHandle = output.name;
-            }
-            
-            // Get target handle - look up the input definition
-            let targetHandle: string | undefined;
-            if (targetNode && targetNode.inputs && targetNode.inputs.length > 0) {
-              // Find matching input by checking nodeId and sourceOutputName
-              const targetInput = targetNode.inputs.find(input =>
-                input.nodeId === node.nodeId && input.sourceOutputName === output.name
-              );
-              if (targetInput) {
-                targetHandle = targetInput.name;
-              } else {
-                // Fallback: use destinationInputName from output
-                targetHandle = output.destinationInputName || 'input';
-              }
-            } else {
-              // No inputs defined, use destinationInputName or default
-              targetHandle = output.destinationInputName || 'input';
-            }
-            
-            const edgeId = `e-${node.nodeId}-${output.name}-${output.destinationNodeId}`;
-            
-            edgeMap.set(edgeId, {
-              id: edgeId,
-              source: node.nodeId,
-              sourceHandle,
-              target: output.destinationNodeId,
-              targetHandle,
-              type: 'default',
-              deletable: true,
-              animated: false,
-              markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--foreground))' },
-              data: { animated: false },
+        outputs.push(...node.outputs.map(out => ({
+          name: out.name,
+          destinationNodeId: out.destinationNodeId,
+          destinationInputName: out.destinationInputName
+        })));
+      }
+
+      // Handle data.outputs object format
+      if (node.data?.outputs && typeof node.data.outputs === 'object') {
+        Object.entries(node.data.outputs).forEach(([name, output]: [string, any]) => {
+          if (output?.destinationNodeId) {
+            outputs.push({
+              name,
+              destinationNodeId: output.destinationNodeId,
+              destinationInputName: output.destinationInputName
             });
           }
         });
       }
+
+      // Create edges for all outputs
+      outputs.forEach(output => {
+        const hasDestination = output.destinationNodeId && output.destinationNodeId.trim() !== "";
+        // Show edge if source is visible (even if target is not - external outputs)
+        const sourceVisible = visibleNodeIds.has(node.nodeId);
+        const isVisible = hasDestination && sourceVisible;
+
+        if (hasDestination && isVisible) {
+          const targetNode = scenario.nodes.find(n => n.nodeId === output.destinationNodeId);
+
+          // Determine source handle based on node type
+          // IMPORTANT: Handle IDs must match what's defined in the node display components
+          let sourceHandle: string | undefined;
+          if (node.type === 'ProcessNode') {
+            sourceHandle = `output-${output.name}`;
+          } else if (node.type === 'FSMProcessNode') {
+            // FSMProcessNode uses the output name directly
+            sourceHandle = output.name;
+          } else if (node.type === 'StateMultiplexer') {
+            sourceHandle = output.name;
+          } else if (node.type === 'DataSource') {
+            sourceHandle = 'output';
+          } else {
+            sourceHandle = output.name;
+          }
+
+          // Get target handle - look up the input definition
+          let targetHandle: string | undefined;
+          if (targetNode && targetNode.inputs && targetNode.inputs.length > 0) {
+            // Find matching input by checking nodeId and sourceOutputName
+            const targetInput = targetNode.inputs.find(input =>
+              input.nodeId === node.nodeId && input.sourceOutputName === output.name
+            );
+            if (targetInput) {
+              targetHandle = targetInput.name;
+            } else {
+              // Fallback: use destinationInputName from output
+              targetHandle = output.destinationInputName || 'input';
+            }
+          } else {
+            // No inputs defined, use destinationInputName or default
+            targetHandle = output.destinationInputName || 'input';
+          }
+
+          const edgeId = `e-${node.nodeId}-${output.name}-${output.destinationNodeId}`;
+
+          edgeMap.set(edgeId, {
+            id: edgeId,
+            source: node.nodeId,
+            sourceHandle,
+            target: output.destinationNodeId,
+            targetHandle,
+            type: 'default',
+            deletable: true,
+            animated: false,
+            markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--foreground))' },
+            data: { animated: false },
+          });
+        }
+      });
     });
 
     return Array.from(edgeMap.values());

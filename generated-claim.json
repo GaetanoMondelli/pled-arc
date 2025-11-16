@@ -1,0 +1,21 @@
+{
+  "workflowTemplateId": "oypjt7e3uUPnxB4tjlQlU",
+  "workflowTemplateName": "DAO House P&L Complete Flow",
+  "claimName": "P&L Validation - 2025-11-16",
+  "description": "Validates P&L statement with signature verification and profit analysis",
+  "validationCriteria": {
+    "reliabilityIndex": 97,
+    "signature": "matched",
+    "signee": "Michael Burry",
+    "netProfit": 0.15
+  },
+  "guardConditions": {
+    "minReliabilityIndex": 70,
+    "requireSignatureMatch": true,
+    "minNetProfit": 0,
+    "formula": "reliabilityIndex >= 70 && signature === \"matched\" && netProfit > 0"
+  },
+  "expectedState": "Approved",
+  "createdAt": "2025-11-16T02:12:24.785Z",
+  "sourceExecution": "BH8bYS08H2aTfhDmk4xXE"
+}

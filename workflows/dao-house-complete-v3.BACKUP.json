@@ -112,7 +112,7 @@
           {
             "name": "output",
             "destinationNodeId": "ValidationFSM",
-            "destinationInputName": "dataInput",
+            "destinationInputName": "input",
             "interface": { "type": "ExtractedData", "requiredFields": [] }
           }
         ],
@@ -123,16 +123,16 @@
       },
       {
         "nodeId": "ValidationFSM",
-        "displayName": "Validate Signature & Profit",
+        "displayName": "Validate",
         "type": "FSMProcessNode",
         "position": { "x": 1000, "y": 225 },
         "inputs": [
-          { "name": "dataInput", "interface": { "type": "ExtractedData", "requiredFields": [] }, "required": true }
+          { "name": "input", "interface": { "type": "ExtractedData", "requiredFields": [] }, "required": true }
         ],
         "outputs": [
           {
             "name": "output",
-            "destinationNodeId": "FormatResult",
+            "destinationNodeId": "ResultSink",
             "destinationInputName": "input",
             "interface": { "type": "FSMOutput", "requiredFields": [] }
           }
@@ -148,45 +148,17 @@
             {
               "from": "Validating",
               "to": "Approved",
-              "trigger": "default",
-              "guard": "dataInput.isSignatureValid === true && dataInput.reliabilityIndex > 70 && dataInput.profit > 0"
-            },
-            {
-              "from": "Validating",
-              "to": "Rejected",
-              "trigger": "default",
-              "guard": "!(dataInput.isSignatureValid === true && dataInput.reliabilityIndex > 70 && dataInput.profit > 0)"
+              "trigger": "default"
             }
           ],
           "variables": {}
         }
       },
       {
-        "nodeId": "FormatResult",
-        "displayName": "Format Result",
-        "type": "ProcessNode",
-        "position": { "x": 1250, "y": 225 },
-        "inputs": [
-          { "name": "input", "interface": { "type": "FSMOutput", "requiredFields": [] }, "required": true }
-        ],
-        "outputs": [
-          {
-            "name": "output",
-            "destinationNodeId": "ResultSink",
-            "destinationInputName": "input",
-            "interface": { "type": "ValidatedData", "requiredFields": [] }
-          }
-        ],
-        "processing": {
-          "type": "transform",
-          "formula": "const data = input.originalToken; return { ...data, state: input.state, fsmId: input.fsmId };"
-        }
-      },
-      {
         "nodeId": "ResultSink",
         "displayName": "Final Result",
         "type": "Sink",
-        "position": { "x": 1500, "y": 225 },
+        "position": { "x": 1250, "y": 225 },
         "inputs": [
           { "name": "input", "interface": { "type": "ValidatedData", "requiredFields": [] } }
         ]
