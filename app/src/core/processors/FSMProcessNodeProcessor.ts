@@ -231,10 +231,13 @@ export class FSMProcessNodeProcessor extends BaseProcessor {
 
   private createStateOutputToken(nodeConfig: NodeConfig, state: FSMProcessNodeState, inputToken: any, timestamp: number): any | null {
     // Create output token with state information
+    // CRITICAL: Include the full token value data, not just a primitive
+    const tokenData = typeof inputToken.value === 'object' ? inputToken.value : { value: inputToken.value };
+
     return this.createToken(
       {
         state: state.currentState,
-        originalToken: inputToken.value,
+        originalToken: tokenData,
         fsmId: nodeConfig.nodeId || nodeConfig.id
       },
       nodeConfig.nodeId || nodeConfig.id,

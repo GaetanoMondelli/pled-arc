@@ -102,7 +102,7 @@
       },
       {
         "nodeId": "ProfitExtractor",
-        "displayName": "Extract Net Profit",
+        "displayName": "Extract & Validate",
         "type": "ProcessNode",
         "position": { "x": 700, "y": 225 },
         "inputs": [
@@ -110,90 +110,21 @@
         ],
         "outputs": [
           {
-            "name": "output",
-            "destinationNodeId": "ValidationFSM",
-            "destinationInputName": "dataInput",
-            "interface": { "type": "ExtractedData", "requiredFields": [] }
-          }
-        ],
-        "processing": {
-          "type": "transform",
-          "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; return { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityScore: input.reliabilityScore || gem.reliabilityScore, signedBy: gem.signedBy, netProfit: netProfit };"
-        }
-      },
-      {
-        "nodeId": "ValidationFSM",
-        "displayName": "Validate Signature & Profit",
-        "type": "FSMProcessNode",
-        "position": { "x": 1000, "y": 225 },
-        "inputs": [
-          { "name": "dataInput", "interface": { "type": "ExtractedData", "requiredFields": [] }, "required": true }
-        ],
-        "outputs": [
-          {
-            "name": "output",
-            "destinationNodeId": "FormatResult",
-            "destinationInputName": "input",
-            "interface": { "type": "FSMOutput", "requiredFields": [] }
-          }
-        ],
-        "fsm": {
-          "states": [
-            { "name": "Validating" },
-            { "name": "Approved" },
-            { "name": "Rejected" }
-          ],
-          "initialState": "Validating",
-          "transitions": [
-            {
-              "from": "Validating",
-              "to": "Approved",
-              "trigger": "default",
-              "guard": "dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0"
-            },
-            {
-              "from": "Validating",
-              "to": "Rejected",
-              "trigger": "default",
-              "guard": "!(dataInput.isSignatureValid === true && dataInput.reliabilityScore > 70 && dataInput.netProfit > 0)"
-            }
-          ],
-          "variables": {}
-        }
-      },
-      {
-        "nodeId": "FormatResult",
-        "displayName": "Format Result",
-        "type": "ProcessNode",
-        "position": { "x": 1250, "y": 225 },
-        "inputs": [
-          { "name": "input", "interface": { "type": "FSMOutput", "requiredFields": [] }, "required": true }
-        ],
-        "outputs": [
-          {
             "name": "approved",
             "destinationNodeId": "ApprovedSink",
             "destinationInputName": "input",
-            "interface": { "type": "ValidatedData", "requiredFields": [] },
-            "transformation": {
-              "formula": "input.state === 'Approved' ? input : null",
-              "fieldMapping": {}
-            }
+            "interface": { "type": "ValidatedData", "requiredFields": [] }
           },
           {
             "name": "rejected",
             "destinationNodeId": "RejectedSink",
             "destinationInputName": "input",
-            "interface": { "type": "ValidatedData", "requiredFields": [] },
-            "transformation": {
-              "formula": "input.state === 'Rejected' ? input : null",
-              "fieldMapping": {}
-            }
+            "interface": { "type": "ValidatedData", "requiredFields": [] }
           }
         ],
         "processing": {
           "type": "transform",
-          "formula": "const data = input.originalToken; return { ...data, status: input.state.toLowerCase(), validatedAt: new Date().toISOString(), reliabilityIndex: data.reliabilityScore, profit: data.netProfit };"
+          "formula": "const doc = input.document.data; const gem = input.gemini.data; const netProfit = doc.jsonContent?.netProfit || 0; const reliabilityScore = input.reliabilityScore || gem.reliabilityScore; const data = { fileName: doc.fileName, documentId: doc.documentId, companyId: doc.companyId, textContent: doc.textContent, markdownContent: doc.markdownContent, jsonContent: doc.jsonContent, isSignatureValid: gem.isValid, reliabilityIndex: reliabilityScore, signedBy: gem.signedBy, profit: netProfit, validatedAt: new Date().toISOString() }; const isValid = gem.isValid === true && reliabilityScore > 70 && netProfit > 0; if (isValid) { return { approved: { ...data, status: 'approved' } }; } else { return { rejected: { ...data, status: 'rejected' } }; }"
         }
       },
       {
